@@ -1,0 +1,7 @@
+<resources>
+  <string name="app_name">MyGymCoach</string>
+  <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
+  <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <string name="expo_pedometer_health_connect_rationale_title">Health permissions</string>
+  <string name="expo_pedometer_health_connect_rationale_description">Step count is read from Health Connect to show today\'s walking progress.</string>
+</resources>

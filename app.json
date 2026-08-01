@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "MyGymCoach",
+    "slug": "mygymcoach",
+    "scheme": "mygymcoach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0d0d10"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tuapp.mygymcoach"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0d0d10"
+      },
+      "package": "com.tuapp.mygymcoach"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir acceso a la cámara para escanear alimentos"
+        }
+      ],
+      "expo-pedometer"
+    ]
+  }
+}
