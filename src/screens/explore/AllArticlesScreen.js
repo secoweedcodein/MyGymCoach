@@ -32,7 +32,34 @@ export default function AllArticlesScreen() {
   const [activeCategory, setActiveCategory] = useState('Todas');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 👇 --- AQUÍ AGREGAMOS TUS NUEVOS ESTADOS Y EL USEEFFECT --- 👇
+  // 👇 --- AQUÍ AGREGAMOS TUS NUEVOS ESTADOS Y EL USEEFFECT --- 
+
+// ✅ AGREGA ESTO (dentro del componente):
+const [allArticles, setAllArticles] = useState([]);
+const [loadingArticles, setLoadingArticles] = useState(true);
+
+useEffect(() => {
+  async function loadAllArticles() {
+    const { data } = await supabase
+      .from('articles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (data) {
+      setAllArticles(data.map(a => ({
+        id: a.id,
+        image: require('../../../assets/suples.png'),
+        title: a.title,
+        category: a.category,
+        categoryColor: a.category_color || ACCENT,
+        readTime: a.read_time,
+        author: a.author,
+      })));
+    }
+    setLoadingArticles(false);
+  }
+  loadAllArticles();
+}, []);
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,11 +78,11 @@ export default function AllArticlesScreen() {
   // 👆 -------------------------------------------------------- 👆
 
   // 👇 --- AQUÍ ACTUALIZAMOS EL FILTRADO PARA USAR 'articles' EN LUGAR DE 'ALL_ARTICLES' --- 👇
-  const filteredArticles = articles.filter(a => {
-    const matchCategory = activeCategory === 'Todas' || a.category === activeCategory;
-    const matchSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCategory && matchSearch;
-  });
+const filteredArticles = allArticles.filter(a => {
+  const matchCategory = activeCategory === 'Todas' || a.category === activeCategory;
+  const matchSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase());
+  return matchCategory && matchSearch;
+});
 
   return (
     <View style={s.container}>

@@ -8,12 +8,10 @@ import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase.js';
 import { getExercise } from './data/exercises.js';
-import { colors } from '../../lib/theme.js';
 import BottomTabBar from '../../components/BottomTabBar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
 const SURFACE  = '#161616';
@@ -23,7 +21,6 @@ const T1       = '#FFFFFF';
 const T2       = '#A0A0A0';
 const T3       = '#555555';
 
-// ── SUB-COMPONENTS ────────────────────────────────────────────────────────────
 function StatCard({ label, value, unit, icon }) {
   return (
     <View style={s.statCard}>
@@ -44,22 +41,33 @@ function QuickAction({ icon, label, sub, onPress }) {
   );
 }
 
-function RoutineCard({ routine, index, onStart }) {
+function RoutineCard({ routine, index }) {
   const ids = routine.exercise_ids || [];
   const nameLower = (routine.name || '').toLowerCase();
-  
-  // Detectar qué tipo de reto es
+
+  // ✅ Detectar qué tipo de rutina/reto es para enlazarlo correctamente al Explore
   const isAbs = routine.is_challenge && (routine.challenge_type === 'abs' || nameLower.includes('abs'));
   const isHipertrofiaAvanzada = routine.is_challenge && (routine.challenge_type === 'hipertrofia_avanzada' || nameLower.includes('avanzada'));
   const isHipertrofia30Dias = routine.is_challenge && nameLower.includes('hipertrofia') && nameLower.includes('30');
   
-  // Si es reto, usar nombres hardcodeados
+  const isPPL = nameLower.includes('ppl') || nameLower.includes('push pull legs');
+  const isUpper = nameLower.includes('upper') || nameLower.includes('hipertrofia upper');
+  const isFullBody = nameLower.includes('full body') || nameLower.includes('fullbody');
+  const is5x5 = nameLower.includes('5x5') || nameLower.includes('fuerza 5x5');
+  const isFuncional = nameLower.includes('funcional') || nameLower.includes('fuerza funcional');
+  const isPowerbuilding = nameLower.includes('powerbuilding');
+
+  // Mostrar nombres reales de los ejercicios en la tarjeta
   const exerciseNames = isAbs
     ? ['Plancha frontal', 'Crunch inverso', 'Russian twist']
     : isHipertrofiaAvanzada || isHipertrofia30Dias
     ? ['Press banca', 'Sentadilla', 'Peso muerto']
+    : isPPL ? ['Press banca', 'Sentadilla', 'Dominadas']
+    : isUpper ? ['Press banca', 'Remo con barra', 'Press militar']
+    : isFullBody ? ['Sentadilla', 'Press banca', 'Remo']
+    : is5x5 ? ['Sentadilla', 'Press banca', 'Remo']
     : ids.slice(0, 3).map(id => getExercise(id)?.name || '?');
-  
+
   const extra = routine.is_challenge ? 3 : Math.max(0, ids.length - 3);
   const accents = ['#C0FF3E', '#3EE5FF', '#FF6B3E', '#FF3EAA'];
   const dot = accents[index % accents.length];
@@ -72,16 +80,52 @@ function RoutineCard({ routine, index, onStart }) {
     daysRemaining = Math.max(0, 30 - diffDays);
   }
 
-  // ✅ FUNCIÓN DE NAVEGACIÓN CORREGIDA
-  const handlePress = () => {
+  // ✅ ENRUTAMIENTO UNIFICADO: Todo va a su pantalla oficial del Explore
+    // ✅ ENRUTAMIENTO UNIFICADO: Todo va a su pantalla oficial del Explore
+  const handlePress = async () => {
     if (isAbs) {
       router.push('/explore/abs-challenge');
     } else if (isHipertrofiaAvanzada) {
-      router.push('/explore/hipertrofia-challenge'); // ← Va a la pantalla de Hipertrofia Avanzada
+      router.push('/explore/hipertrofia-challenge');
     } else if (isHipertrofia30Dias) {
-      router.push('/explore/challenge-detail'); // ← Va a la pantalla de Hipertrofia 30 días
+      router.push('/explore/challenge-detail');
+    } else if (isPPL) {
+      router.push('/explore/routine-detail?id=ppl');
+    } else if (isUpper) {
+      router.push('/explore/routine-detail?id=upper');
+    } else if (isFullBody) {
+      router.push('/explore/routine-detail?id=fullbody');
+    } else if (is5x5) {
+      router.push('/explore/routine-detail?id=5x5');
+    } else if (isFuncional) {
+      router.push('/explore/routine-detail?id=funcional');
+    } else if (isPowerbuilding) {
+      router.push('/explore/routine-detail?id=powerbuilding');
     } else {
-      onStart();
+      // ✅ Para retos personalizados: buscar el ID real en la tabla challenges
+      if (routine.is_challenge) {
+        const challengeName = routine.name.replace(/^Reto:\s*/i, '').trim();
+        
+        try {
+          const { data: challenge } = await supabase
+            .from('challenges')
+            .select('id')
+            .eq('name', challengeName)
+            .maybeSingle();
+
+          if (challenge) {
+            router.push(`/explore/challenge-dynamic?id=${challenge.id}`);
+          } else {
+            // Fallback: si no lo encuentra, usar el ID de la rutina
+            router.push(`/explore/challenge-dynamic?id=${routine.id}`);
+          }
+        } catch (err) {
+          console.error('Error buscando reto:', err);
+          router.push(`/explore/challenge-dynamic?id=${routine.id}`);
+        }
+      } else {
+        router.push(`/explore/routine-detail?id=${routine.id}`);
+      }
     }
   };
 
@@ -98,7 +142,7 @@ function RoutineCard({ routine, index, onStart }) {
                 <Text style={s.routineMeta}>· {daysRemaining} días</Text>
               </View>
             ) : (
-              <Text style={s.routineMeta}>{ids.length} ejercicios</Text>
+              <Text style={s.routineMeta}>{ids.length > 0 ? `${ids.length} ejercicios` : 'Rutina'}</Text>
             )}
           </View>
           <TouchableOpacity style={s.startBtn} onPress={handlePress} activeOpacity={0.8}>
@@ -107,7 +151,6 @@ function RoutineCard({ routine, index, onStart }) {
             </Text>
           </TouchableOpacity>
         </View>
-
         <View style={s.chipRow}>
           {exerciseNames.map((n, i) => (
             <View key={i} style={s.chip}>
@@ -138,14 +181,14 @@ function EmptyRoutines({ onPress }) {
   );
 }
 
-// ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [routines, setRoutines] = useState([]);
   const [stats, setStats] = useState({ workouts: 0, sets: 0, volume: 0 });
   const [todayCalories, setTodayCalories] = useState(0);
-const [tapCount, setTapCount] = useState(0);
-useEffect(() => {
+  const [tapCount, setTapCount] = useState(0);
+
+  useEffect(() => {
     if (tapCount >= 5) {
       router.push('/admin/login');
       setTapCount(0);
@@ -154,11 +197,6 @@ useEffect(() => {
     return () => clearTimeout(timeout);
   }, [tapCount]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [])
-  );
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -188,7 +226,6 @@ useEffect(() => {
     if (rData) {
       const today = new Date();
       const expiredIds = [];
-
       const activeRoutines = rData.filter(r => {
         if (r.is_challenge && r.challenge_start_date) {
           const startDate = new Date(r.challenge_start_date);
@@ -201,7 +238,6 @@ useEffect(() => {
         }
         return true;
       });
-
       setRoutines(activeRoutines);
 
       if (expiredIds.length > 0) {
@@ -211,18 +247,16 @@ useEffect(() => {
       }
     }
 
-    // Calorías de hoy
     const todayLogDate = new Date().toISOString().split('T')[0];
     const { data: nutData } = await supabase
       .from('nutrition_logs')
       .select('calories')
       .eq('user_id', user.id)
       .eq('logged_date', todayLogDate);
-
+    
     const todayCal = (nutData || []).reduce((a, r) => a + (r.calories || 0), 0);
     setTodayCalories(Math.round(todayCal));
 
-    // Estadísticas del mes actual
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const { data: sData, error: statsError } = await supabase
@@ -242,99 +276,11 @@ useEffect(() => {
     } else {
       setStats({ workouts: 0, sets: 0, volume: 0 });
     }
-
     setRefreshing(false);
   }
 
   async function handleSignOut() {
     await supabase.auth.signOut();
-  }
-
-    async function startRoutine(routine) {
-    let routineToStart = { ...routine };
-    const nameLower = (routine.name || '').toLowerCase();
-
-    if (routine.is_challenge) {
-      if (routine.challenge_type === 'abs' || nameLower.includes('abs')) {
-        routineToStart.exercises = [
-          { name: 'Plancha frontal', sets: 3, reps: '45s' },
-          { name: 'Crunch inverso', sets: 4, reps: '15' },
-          { name: 'Russian twist', sets: 3, reps: '20' },
-          { name: 'Mountain climbers', sets: 4, reps: '30s' },
-          { name: 'Plancha lateral', sets: 3, reps: '30s/lado' },
-          { name: 'Bicycle crunch', sets: 3, reps: '20' },
-        ];
-      } else if (routine.challenge_type === 'hipertrofia' || routine.challenge_type === 'hipertrofia_avanzada' || nameLower.includes('hipertrofia')) {
-        routineToStart.exercises = [
-          { name: 'Press banca plano', sets: 4, reps: '8-10' },
-          { name: 'Sentadilla trasera', sets: 4, reps: '8-10' },
-          { name: 'Peso muerto rumano', sets: 4, reps: '10-12' },
-          { name: 'Press militar mancuernas', sets: 3, reps: '10-12' },
-          { name: 'Dominadas lastradas', sets: 3, reps: '8-10' },
-          { name: 'Curl bíceps con barra', sets: 3, reps: '12-15' },
-        ];
-      } else {
-        // ✅ AQUÍ ESTÁ LA CLAVE: Para retos nuevos (Full Body, PPL, Upper, 5x5, o creados desde el móvil)
-        // Buscamos los ejercicios reales en la tabla 'challenges' por nombre
-        const challengeName = routine.name.replace(/^Reto:\s*/i, '').trim();
-        
-        try {
-          const { data: challenge } = await supabase
-            .from('challenges')
-            .select('days')
-            .eq('name', challengeName)
-            .maybeSingle();
-
-          if (challenge && challenge.days && challenge.days.length > 0) {
-            // Usamos el primer día como predeterminado
-            const firstDay = challenge.days[0];
-            routineToStart.exercises = firstDay.exercises.map(ex => ({
-              name: ex.name,
-              sets: parseInt(ex.sets) || 3,
-              reps: ex.reps,
-            }));
-          } else {
-            // Fallback si no se encuentra el reto en la BD
-            routineToStart.exercises = [
-              { name: 'Ejercicio 1', sets: 3, reps: '10' },
-              { name: 'Ejercicio 2', sets: 3, reps: '12' },
-              { name: 'Ejercicio 3', sets: 3, reps: '15' },
-            ];
-          }
-        } catch (err) {
-          console.error('Error cargando ejercicios del reto:', err);
-          routineToStart.exercises = [
-            { name: 'Ejercicio 1', sets: 3, reps: '10' },
-            { name: 'Ejercicio 2', sets: 3, reps: '12' },
-            { name: 'Ejercicio 3', sets: 3, reps: '15' },
-          ];
-        }
-      }
-    } else {
-      // ✅ Para rutinas normales (No son retos)
-      if (routine.exercise_ids && routine.exercise_ids.length > 0) {
-        routineToStart.exercises = routine.exercise_ids.map(id => {
-          const ex = getExercise(id);
-          return {
-            name: ex?.name || 'Ejercicio',
-            sets: 3,
-            reps: '10',
-          };
-        });
-      } else {
-        // Fallback para rutinas sin ejercicios
-        routineToStart.exercises = [
-          { name: 'Ejercicio 1', sets: 3, reps: '10' },
-          { name: 'Ejercicio 2', sets: 3, reps: '12' },
-          { name: 'Ejercicio 3', sets: 3, reps: '15' },
-        ];
-      }
-    }
-
-    router.push({
-      pathname: '/workout',
-      params: { routine: JSON.stringify(routineToStart) }
-    });
   }
 
   const today  = new Date();
@@ -351,27 +297,19 @@ useEffect(() => {
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor={ACCENT} />}
       >
-        {/* ── TOP BAR ── */}
-<View style={s.topBar}>
-  
-  {/* Botón secreto en el título con tu código */}
-  <TouchableOpacity
-    onPress={() => setTapCount(c => c + 1)}
-    activeOpacity={0.7}
-  >
-    <Text style={s.appName}>MyGym<Text style={s.appNameAccent}>Coach</Text></Text>
-  </TouchableOpacity>
-  
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-    <TouchableOpacity onPress={handleSignOut} style={s.signOutBtn}>
-      <Text style={s.signOutText}>Salir</Text>
-    </TouchableOpacity>
-  </View>
-</View>
+        <View style={s.topBar}>
+          <TouchableOpacity onPress={() => setTapCount(c => c + 1)} activeOpacity={0.7}>
+            <Text style={s.appName}>MyGym<Text style={s.appNameAccent}>Coach</Text></Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity onPress={handleSignOut} style={s.signOutBtn}>
+              <Text style={s.signOutText}>Salir</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        {/* ── HERO ── */}
         <View style={s.hero}>
           <View style={s.heroGlow} />
           <Text style={s.heroDay}>{dayName} · {dateStr}</Text>
@@ -379,14 +317,12 @@ useEffect(() => {
           <Text style={s.heroSub}>Cada rep cuenta. Sigue adelante.</Text>
         </View>
 
-        {/* ── STATS ROW ── */}
         <View style={s.statsRow}>
           <StatCard label="Entrenos del mes"  value={stats.workouts} unit=""   icon="🏋️" />
           <StatCard label="Series del mes"    value={stats.sets}     unit=""   icon="📊" />
           <StatCard label="Volumen del mes"   value={`${stats.volume}`} unit="kg" icon="⚡" />
         </View>
 
-        {/* ── STEPS CARD ── */}
         <TouchableOpacity onPress={() => router.push('/Steps')} style={s.stepsCardFull} activeOpacity={0.8}>
           <View style={s.stepsCardGlow} />
           <View style={s.stepsCardContent}>
@@ -403,7 +339,6 @@ useEffect(() => {
           </View>
         </TouchableOpacity>
 
-        {/* ── QUICK ACTIONS ── */}
         <View>
           <View style={s.quickRow}>
             <QuickAction icon="📅" label="Historial" sub="Sesiones pasadas" onPress={() => router.push('/History')} />
@@ -416,7 +351,6 @@ useEffect(() => {
           </View>
         </View>
 
-        {/* ── ROUTINES ── */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionLabel}>MIS RUTINAS</Text>
           <TouchableOpacity onPress={() => router.push('/routines')} style={s.newBtn}>
@@ -432,20 +366,16 @@ useEffect(() => {
               key={r.id}
               routine={r}
               index={idx}
-              onStart={() => startRoutine(r)}
             />
           ))
         )}
       </ScrollView>
-
       <BottomTabBar />
     </View>
   );
 }
 
-// ── ESTILOS ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
   scrollContent: { paddingBottom: 60 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 4 },
   appName: { fontSize: 20, fontWeight: '800', color: T1, letterSpacing: -0.5 },

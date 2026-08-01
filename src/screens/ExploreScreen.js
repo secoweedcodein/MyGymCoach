@@ -111,6 +111,27 @@ const EXERCISE_OF_DAY = {
 };
 
 export default function ExploreScreen() {
+  const [articles, setArticles] = useState([]);
+  useEffect(() => {
+  async function loadArticles() {
+    const { data } = await supabase
+      .from('articles')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(3);
+    
+    if (data) {
+      setArticles(data.map(a => ({
+        id: a.id,
+        image: require('../../assets/suples.png'), // Placeholder
+        title: a.title,
+        category: a.category,
+        readTime: a.read_time,
+      })));
+    }
+  }
+  loadArticles();
+}, []);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('trends');
   const scrollRef = useRef(null);
@@ -278,14 +299,14 @@ useEffect(() => {
         </View>
 
         <View onLayout={handleSectionLayout('learn')}>
-          <FadeInUp delay={200}>
-            <Section title="📚 Aprende" description="Artículos, técnica y consejos" onSeeAll={() => router.push('/explore/learn')}>
-              {loading ? <SkeletonRow /> : (
-                <HorizontalList data={ARTICLES} renderItem={(item) => <ArticleCard key={item.id} item={item} />} />
-              )}
-            </Section>
-          </FadeInUp>
-        </View>
+  <FadeInUp delay={200}>
+    <Section title="📚 Aprende" description="Artículos, técnica y consejos" onSeeAll={() => router.push('/explore/learn')}>
+      {loading || articles.length === 0 ? <SkeletonRow /> : (
+        <HorizontalList data={articles} renderItem={(item) => <ArticleCard key={item.id} item={item} />} />
+      )}
+    </Section>
+  </FadeInUp>
+</View>
 
         <View onLayout={handleSectionLayout('challenges')}>
           <FadeInUp delay={220}>
