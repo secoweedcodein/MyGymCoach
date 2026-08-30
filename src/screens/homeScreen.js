@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase.js';
 import { getExercise } from './data/exercises.js';
 import BottomTabBar from '../../components/BottomTabBar';
+import { getUserStreak } from '../../services/streakService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -187,6 +188,7 @@ export default function HomeScreen() {
   const [stats, setStats] = useState({ workouts: 0, sets: 0, volume: 0 });
   const [todayCalories, setTodayCalories] = useState(0);
   const [tapCount, setTapCount] = useState(0);
+  const [streak, setStreak] = useState({ currentStreak: 0, longestStreak: 0 });
 
   useEffect(() => {
     if (tapCount >= 5) {
@@ -196,6 +198,17 @@ export default function HomeScreen() {
     const timeout = setTimeout(() => setTapCount(0), 2000);
     return () => clearTimeout(timeout);
   }, [tapCount]);
+
+  useEffect(() => {
+    const loadStreak = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const data = await getUserStreak(user.id);
+      setStreak(data);
+    };
+
+    loadStreak();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -315,6 +328,14 @@ export default function HomeScreen() {
           <Text style={s.heroDay}>{dayName} · {dateStr}</Text>
           <Text style={s.heroGreeting}>{greeting}, atleta 💪</Text>
           <Text style={s.heroSub}>Cada rep cuenta. Sigue adelante.</Text>
+
+          <View style={s.streakContainer}>
+            <Text style={s.streakEmoji}>🔥</Text>
+            <View style={s.streakTextWrap}>
+              <Text style={s.streakText}>{streak.currentStreak} días</Text>
+              <Text style={s.streakSubtext}>Racha actual</Text>
+            </View>
+          </View>
         </View>
 
         <View style={s.statsRow}>
@@ -387,6 +408,11 @@ const s = StyleSheet.create({
   heroDay: { fontSize: 12, fontWeight: '700', color: ACCENT, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 },
   heroGreeting: { fontSize: 36, fontWeight: '800', color: T1, lineHeight: 42, letterSpacing: -1, marginBottom: 8 },
   heroSub: { fontSize: 14, color: T2, fontWeight: '400' },
+  streakContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, backgroundColor: 'rgba(192,255,62,0.08)', borderWidth: 1, borderColor: ACCENT + '40', alignSelf: 'flex-start' },
+  streakEmoji: { fontSize: 22, marginRight: 10 },
+  streakTextWrap: { alignItems: 'flex-start' },
+  streakText: { fontSize: 18, fontWeight: '800', color: T1 },
+  streakSubtext: { fontSize: 11, color: T2, fontWeight: '600', marginTop: 2 },
   statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 12 },
   statCard: { flex: 1, backgroundColor: SURFACE, borderRadius: 16, padding: 14, alignItems: 'flex-start', borderWidth: 1, borderColor: BORDER },
   statIcon: { fontSize: 18, marginBottom: 8 },

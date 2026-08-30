@@ -1,4 +1,4 @@
-// src/screens/WorkoutScreen.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
@@ -12,7 +12,10 @@ import ExerciseIcon from '../../components/ExerciseIcon.js';
 import RecordToast from '../../components/RecordToast.js';
 import { usePersonalRecords } from '../../src/screens/hooks/usePersonalRecords.js';
 import { useAlert } from "../context/AlertContext.js";
-
+import { checkAndSavePR } from '../../services/progressService';
+import { PlateCalculatorModal } from '../../components/PlateCalculatorModal.js';
+import { RPESelector } from '../../components/RPESelector.js';
+import { GymKeypad } from '../../components/GymKeypad.js';
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -204,6 +207,12 @@ export default function WorkoutScreen({ route }) {
   const [showModal, setShowModal]     = useState(false);
   const [modalQuery, setModalQuery]   = useState('');
 
+  // Estados para nuevos componentes
+  const [plateModalVisible, setPlateModalVisible] = useState(false);
+  const [plateWeight, setPlateWeight]             = useState(60);
+  const [activeKeypad, setActiveKeypad]           = useState(null); // { ei, si, field: 'kg' | 'reps' }
+  const [activeRpeKey, setActiveRpeKey]           = useState(null); // "ei-si" string
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -365,6 +374,21 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
     });
   }
 
+  const handleSetComplete = async (exerciseName, weight, reps) => {
+    if (!userId || !exerciseName) return;
+
+    const safeWeight = Number(weight);
+    const safeReps = Number(reps);
+    if (!Number.isFinite(safeWeight) || !Number.isFinite(safeReps) || safeWeight <= 0 || safeReps <= 0) {
+      return;
+    }
+
+    const result = await checkAndSavePR(userId, exerciseName, safeWeight, safeReps, null);
+    if (result?.isNewPR) {
+      Alert.alert('🏆 ¡Nuevo Récord!', `${exerciseName}: ${safeWeight}kg × ${safeReps} reps`);
+    }
+  };
+
   async function toggleDone(ei, si) {
     const set     = exercises[ei].sets[si];
     const wasDone = set.done;
@@ -379,12 +403,16 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
       Vibration.vibrate(40);
       resetRest();
       setRestRunning(true);
-      const ex = getExercise(exercises[ei].exId);
+      const ex = exercises[ei]?.name
+        ? { name: exercises[ei].name }
+        : getExercise(exercises[ei].exId);
+
       if (ex && (parseFloat(set.kg) > 0 || parseInt(set.reps) > 0)) {
         await checkRecord(
           { exId: String(exercises[ei].exId), name: ex.name },
           { kg: set.kg, reps: set.reps }
         );
+        await handleSetComplete(ex.name, set.kg, set.reps);
       }
     }
   }
@@ -512,6 +540,7 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
                     set_type: s.type,
                     weight_kg: parseFloat(s.kg) || 0,
                     reps: parseInt(s.reps) || 0,
+                    rpe: s.rpe ? Number(s.rpe) : null,
                     completed: true,
                   });
                 }
@@ -661,23 +690,35 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
 
               {/* Header tabla */}
               <View style={s.tableHdr}>
-                <Text style={[s.thCell, { width: 26 }]}>#</Text>
-                <Text style={[s.thCell, { width: 54 }]}>Tipo</Text>
+                <Text style={[s.thCell, { width: 22 }]}>#</Text>
+                <Text style={[s.thCell, { width: 32 }]}>Tipo</Text>
                 <Text style={[s.thCell, s.thCenter, { flex: 1 }]}>Peso kg</Text>
                 <Text style={[s.thCell, s.thCenter, { flex: 1 }]}>Reps</Text>
-                <Text style={[s.thCell, { width: 38 }]}></Text>
-                <Text style={[s.thCell, { width: 26 }]}></Text>
+                <Text style={[s.thCell, s.thCenter, { width: 44 }]}>RPE</Text>
+                <Text style={[s.thCell, { width: 34 }]}></Text>
+                <Text style={[s.thCell, { width: 22 }]}></Text>
               </View>
 
               {/* Filas de series */}
               {e.sets.map((set, si) => {
                 const tc = TYPE_CONFIG[set.type] ?? TYPE_CONFIG.N;
+                const rpeKey = `${ei}-${si}`;
+                const isKeypadOpen = activeKeypad?.ei === ei && activeKeypad?.si === si;
                 return (
                   <SetRow
-                    key={si}
+                    key={`${ei}-${si}`}
                     set={set}
                     si={si}
                     tc={tc}
+                    isRpeOpen={activeRpeKey === rpeKey}
+                    isKeypadOpen={isKeypadOpen}
+                    activeKeypadField={activeKeypad?.field ?? 'kg'}
+                    onToggleRpe={() => setActiveRpeKey(prev => prev === rpeKey ? null : rpeKey)}
+                    onOpenKeypad={(field) => {
+                      setActiveKeypad({ ei, si, field });
+                      setActiveRpeKey(null);
+                    }}
+                    onCloseKeypad={() => setActiveKeypad(null)}
                     onChangeType={() => {
                       const types = ['N', 'W', 'D', 'F'];
                       const next  = types[(types.indexOf(set.type) + 1) % types.length];
@@ -685,6 +726,12 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
                     }}
                     onChangeKg={v  => updateSet(ei, si, 'kg', v)}
                     onChangeReps={v => updateSet(ei, si, 'reps', v)}
+                    onChangeRpe={v => updateSet(ei, si, 'rpe', v)}
+                    onOpenPlates={kg => {
+                      const w = parseFloat(kg) || 20;
+                      setPlateWeight(w);
+                      setPlateModalVisible(true);
+                    }}
                     onToggleDone={() => toggleDone(ei, si)}
                     onRemove={() => removeSet(ei, si)}
                   />
@@ -707,6 +754,13 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
 
       {/* Toast récord */}
       <RecordToast record={newRecord} onHide={clearRecord} />
+
+      {/* Modal Calculadora de Discos */}
+      <PlateCalculatorModal
+        visible={plateModalVisible}
+        onClose={() => setPlateModalVisible(false)}
+        targetWeight={plateWeight}
+      />
 
       {/* Modal ejercicios */}
       <Modal visible={showModal} animationType="slide" transparent>
@@ -748,7 +802,24 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
 }
 
 // ── Fila de serie como componente separado ────────────────────────────────────
-function SetRow({ set, si, tc, onChangeType, onChangeKg, onChangeReps, onToggleDone, onRemove }) {
+function SetRow({
+  set,
+  si,
+  tc,
+  isRpeOpen,
+  isKeypadOpen,
+  activeKeypadField,
+  onToggleRpe,
+  onOpenKeypad,
+  onCloseKeypad,
+  onChangeType,
+  onChangeKg,
+  onChangeReps,
+  onChangeRpe,
+  onOpenPlates,
+  onToggleDone,
+  onRemove,
+}) {
   const doneAnim = useRef(new Animated.Value(set.done ? 1 : 0)).current;
   useEffect(() => {
     Animated.spring(doneAnim, {
@@ -761,67 +832,125 @@ function SetRow({ set, si, tc, onChangeType, onChangeKg, onChangeReps, onToggleD
   const rowBg = doneAnim.interpolate({ inputRange: [0, 1], outputRange: ['#161616', '#3DD68C0A'] });
 
   return (
-    <Animated.View style={[sr.row, { backgroundColor: rowBg }]}>
-      <Text style={sr.num}>{si + 1}</Text>
+    <View style={{ borderBottomWidth: 1, borderBottomColor: BORDER }}>
+      <Animated.View style={[sr.row, { backgroundColor: rowBg }]}>
+        <Text style={sr.num}>{si + 1}</Text>
 
-      <TouchableOpacity style={[sr.typePill, { borderColor: tc.color + '66' }]} onPress={onChangeType} activeOpacity={0.7}>
-        <Text style={[sr.typeText, { color: tc.color }]}>{set.type}</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={[sr.typePill, { borderColor: tc.color + '66' }]} onPress={onChangeType} activeOpacity={0.7}>
+          <Text style={[sr.typeText, { color: tc.color }]}>{set.type}</Text>
+        </TouchableOpacity>
 
-      <View style={[sr.inputWrap, set.done && sr.inputWrapDone]}>
-        <TextInput
-          style={[sr.input, set.done && sr.inputDone]}
-          value={set.kg}
-          onChangeText={onChangeKg}
-          placeholder="—"
-          placeholderTextColor={T3}
-          keyboardType="decimal-pad"
-          selectTextOnFocus
-        />
-        <Text style={sr.inputUnit}>kg</Text>
-      </View>
+        <View style={[sr.inputWrap, set.done && sr.inputWrapDone, isKeypadOpen && activeKeypadField === 'kg' && sr.inputWrapActive]}>
+          <TextInput
+            style={[sr.input, set.done && sr.inputDone]}
+            value={set.kg !== undefined && set.kg !== null ? String(set.kg) : ''}
+            onChangeText={onChangeKg}
+            onFocus={() => onOpenKeypad('kg')}
+            placeholder="—"
+            placeholderTextColor={T3}
+            keyboardType="decimal-pad"
+            selectTextOnFocus
+          />
+          <TouchableOpacity onPress={() => onOpenPlates(set.kg)} hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+            <Text style={sr.inputUnit}>kg 🧮</Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={[sr.inputWrap, set.done && sr.inputWrapDone]}>
-        <TextInput
-          style={[sr.input, set.done && sr.inputDone]}
-          value={set.reps}
-          onChangeText={onChangeReps}
-          placeholder="—"
-          placeholderTextColor={T3}
-          keyboardType="number-pad"
-          selectTextOnFocus
-        />
-        <Text style={sr.inputUnit}>reps</Text>
-      </View>
+        <View style={[sr.inputWrap, set.done && sr.inputWrapDone, isKeypadOpen && activeKeypadField === 'reps' && sr.inputWrapActive]}>
+          <TextInput
+            style={[sr.input, set.done && sr.inputDone]}
+            value={set.reps !== undefined && set.reps !== null ? String(set.reps) : ''}
+            onChangeText={onChangeReps}
+            onFocus={() => onOpenKeypad('reps')}
+            placeholder="—"
+            placeholderTextColor={T3}
+            keyboardType="number-pad"
+            selectTextOnFocus
+          />
+          <Text style={sr.inputUnit}>reps</Text>
+        </View>
 
-      <TouchableOpacity
-        style={[sr.doneBtn, set.done && sr.doneBtnActive]}
-        onPress={onToggleDone}
-        activeOpacity={0.8}
-      >
-        <Text style={{ color: set.done ? '#000' : T3, fontSize: 14, fontWeight: '800' }}>✓</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[sr.rpeBtn, set.rpe && sr.rpeBtnActive]}
+          onPress={onToggleRpe}
+          activeOpacity={0.7}
+        >
+          <Text style={[sr.rpeBtnText, set.rpe && sr.rpeBtnTextActive]}>
+            {set.rpe ? `@${set.rpe}` : 'RPE'}
+          </Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity onPress={onRemove} style={sr.removeSet} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
-        <Text style={{ color: T3, fontSize: 14 }}>✕</Text>
-      </TouchableOpacity>
-    </Animated.View>
+        <TouchableOpacity
+          style={[sr.doneBtn, set.done && sr.doneBtnActive]}
+          onPress={onToggleDone}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: set.done ? '#000' : T3, fontSize: 14, fontWeight: '800' }}>✓</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={onRemove} style={sr.removeSet} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
+          <Text style={{ color: T3, fontSize: 14 }}>✕</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      {isKeypadOpen && (
+        <View style={sr.keypadPanel}>
+          <GymKeypad
+            value={activeKeypadField === 'kg' ? set.kg : set.reps}
+            onChange={(val) => {
+              const nextVal = val === '' ? '' : String(val);
+              if (activeKeypadField === 'kg') onChangeKg(nextVal);
+              else onChangeReps(nextVal);
+            }}
+            onDone={(val) => {
+              const nextVal = String(val ?? '');
+              if (activeKeypadField === 'kg') onChangeKg(nextVal);
+              else onChangeReps(nextVal);
+              onCloseKeypad();
+            }}
+            onCalculatePlates={() => {
+              const targetWeight = parseFloat(activeKeypadField === 'kg' ? set.kg : set.reps) || 20;
+              onOpenPlates(targetWeight);
+            }}
+          />
+        </View>
+      )}
+
+      {isRpeOpen && (
+        <View style={sr.rpeDropdown}>
+          <RPESelector
+            value={set.rpe}
+            onChange={(val) => {
+              onChangeRpe(val);
+              onToggleRpe();
+            }}
+          />
+        </View>
+      )}
+    </View>
   );
 }
 
 const sr = StyleSheet.create({
-  row:          { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: BORDER },
-  num:          { width: 26, fontSize: 12, color: T3, fontWeight: '600' },
-  typePill:     { width: 34, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: SURFACE2 },
-  typeText:     { fontSize: 12, fontWeight: '800' },
+  row:          { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
+  num:          { width: 22, fontSize: 12, color: T3, fontWeight: '600' },
+  typePill:     { width: 30, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: SURFACE2 },
+  typeText:     { fontSize: 11, fontWeight: '800' },
   inputWrap:    { flex: 1, backgroundColor: SURFACE2, borderRadius: 10, borderWidth: 1, borderColor: BORDER2, alignItems: 'center', paddingVertical: 6, paddingHorizontal: 4 },
   inputWrapDone:{ borderColor: GREEN + '55', backgroundColor: GREEN + '0A' },
-  input:        { fontSize: 18, fontWeight: '800', color: T1, textAlign: 'center', width: '100%' },
+  inputWrapActive:{ borderColor: ACCENT + '88', backgroundColor: ACCENT + '0A' },
+  input:        { fontSize: 17, fontWeight: '800', color: T1, textAlign: 'center', width: '100%' },
   inputDone:    { color: GREEN },
   inputUnit:    { fontSize: 9, color: T3, fontWeight: '600', letterSpacing: 0.5, marginTop: 1 },
-  doneBtn:      { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, borderColor: T3, alignItems: 'center', justifyContent: 'center' },
+  rpeBtn:       { paddingHorizontal: 6, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: BORDER2, backgroundColor: SURFACE2, alignItems: 'center', justifyContent: 'center', minWidth: 42 },
+  rpeBtnActive: { borderColor: ACCENT, backgroundColor: 'rgba(192, 255, 62, 0.15)' },
+  rpeBtnText:   { fontSize: 10, fontWeight: '700', color: T3 },
+  rpeBtnTextActive: { color: ACCENT },
+  keypadPanel:  { backgroundColor: '#121212', borderTopWidth: 1, borderTopColor: BORDER, overflow: 'hidden' },
+  rpeDropdown:  { backgroundColor: '#121212', paddingVertical: 8, paddingHorizontal: 10 },
+  doneBtn:      { width: 34, height: 34, borderRadius: 10, borderWidth: 1.5, borderColor: T3, alignItems: 'center', justifyContent: 'center' },
   doneBtnActive:{ backgroundColor: ACCENT, borderColor: ACCENT },
-  removeSet:    { width: 26, alignItems: 'center' },
+  removeSet:    { width: 22, alignItems: 'center' },
 });
 
 // ── Estilos globales ──────────────────────────────────────────────────────────

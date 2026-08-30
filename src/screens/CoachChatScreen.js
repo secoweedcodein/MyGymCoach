@@ -37,21 +37,42 @@ export default function CoachChatScreen() {
   const [userContext, setUserContext] = useState('');
   const flatListRef = useRef(null);
 
-  // Cargar contexto del usuario al montar
+  // Cargar contexto del usuario y mensajes al montar
   useEffect(() => {
     (async () => {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Load context
       const analysis = await runFullAnalysis(user.id);
       if (analysis) {
         setUserContext(buildUserContextForChat(analysis));
       }
+
+      // Load history
+      const { data: history } = await supabase
+        .from('chat_messages')
+        .select('role, content')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(50);
+
+      if (history && history.length > 0) {
+        setMessages(history);
+      }
+      setLoading(false);
     })();
   }, []);
 
   const sendMessage = useCallback(async (text) => {
     const message = text || input.trim();
     if (!message || loading) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
 
     const userMsg = { role: 'user', content: message };
     const newMessages = [...messages, userMsg];
@@ -60,9 +81,27 @@ export default function CoachChatScreen() {
     setLoading(true);
 
     try {
+      if (user) {
+        await supabase.from('chat_messages').insert({
+          user_id: user.id,
+          role: 'user',
+          content: message
+        });
+      }
+
       const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }));
       const reply = await sendMessageToCoach(apiMessages, userContext);
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      
+      const assistantMsg = { role: 'assistant', content: reply };
+      setMessages(prev => [...prev, assistantMsg]);
+      
+      if (user) {
+        await supabase.from('chat_messages').insert({
+          user_id: user.id,
+          role: 'assistant',
+          content: reply
+        });
+      }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Hubo un error procesando tu mensaje. Intenta de nuevo.' }]);
     } finally {

@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from "../context/AlertContext";
 import BottomTabBar from '../../components/BottomTabBar';
-
+import { exportWorkoutHistory } from '../services/exportService';
 // ── Tokens de diseño ──────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -304,12 +304,26 @@ export default function ProfileScreen() {
           <Achievement icon="" label="Meta cumplida" unlocked={false} />
         </View>
 
-        {/* Sección: Configuración */}
-        <SectionHeader title="⚙️ Configuración" />
+        {/* Sección: Configuración y Datos */}
+        <SectionHeader title="⚙️ Configuración y Datos" />
         <View style={p.card}>
           <SettingItem icon="🔔" label="Notificaciones" />
           <SettingItem icon="📏" label="Unidades (kg/cm)" />
           <SettingItem icon="🌙" label="Modo Oscuro" />
+          <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 8 }} />
+          <TouchableOpacity style={p.settingRow} onPress={() => exportWorkoutHistory(userId, 'json')} activeOpacity={0.7}>
+            <Text style={p.settingIcon}>📊</Text>
+            <Text style={p.settingLabel}>Exportar Entrenamientos (JSON)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={p.settingRow} onPress={() => exportWorkoutHistory(userId, 'csv')} activeOpacity={0.7}>
+            <Text style={p.settingIcon}>📊</Text>
+            <Text style={p.settingLabel}>Exportar Entrenamientos (CSV)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={p.settingRow} onPress={() => showAlert('Próximamente', 'Esta función estará disponible en futuras actualizaciones.')} activeOpacity={0.7}>
+            <Text style={p.settingIcon}>📥</Text>
+            <Text style={p.settingLabel}>Importar desde Hevy/Strong</Text>
+          </TouchableOpacity>
+          <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 8 }} />
           <TouchableOpacity style={p.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
             <Text style={p.settingIcon}>🚪</Text>
             <Text style={p.signOutLabel}>Cerrar sesión</Text>

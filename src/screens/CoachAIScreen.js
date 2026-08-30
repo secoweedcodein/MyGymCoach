@@ -30,7 +30,25 @@ export default function CoachAIScreen() {
   const [userId, setUserId] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [showProgress, setShowProgress] = useState(false);
+const getAdaptiveSuggestions = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
 
+  const response = await fetch(
+    `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/coach-analysis`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId: session.user.id }),
+    }
+  );
+
+  const data = await response.json();
+  return data.suggestions;
+};
   const loadAnalysis = useCallback(async () => {
     if (!userId) return;
     try {

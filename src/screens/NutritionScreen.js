@@ -8,6 +8,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import BarcodeScannerScreen from '../../src/screens/BarcodeScannerScreen.js';
+import { copyYesterdayMeals } from '../../services/nutritionService';
+import { Alert } from 'react-native'; // Asegúrate de que Alert esté importado
 
 const ACCENT  = '#C0FF3E';
 const BG      = '#0D0D0D';
@@ -175,7 +177,16 @@ export default function NutritionScreen() {
     
     setLoading(false);
   }
-
+  const handleCopyYesterday = async () => {
+    if (!userId) return;
+    const result = await copyYesterdayMeals(userId);
+    if (result.success) {
+      Alert.alert('✅ Éxito', result.message);
+      loadAll(); // Recarga la pantalla para mostrar las nuevas comidas
+    } else {
+      Alert.alert('⚠️ Aviso', result.message);
+    }
+  };
   async function removeFood(id) {
     await supabase.from('nutrition_logs').delete().eq('id', id);
     loadAll();
@@ -289,6 +300,18 @@ export default function NutritionScreen() {
             </ScrollView>
           </>
         )}
+  {/* ── BOTÓN COPIAR AYER ── */}
+  <TouchableOpacity 
+    style={[s.searchCard, { marginBottom: 16, backgroundColor: '#f0f9ff', borderColor: '#007AFF', borderWidth: 1 }]} 
+    onPress={handleCopyYesterday} 
+    activeOpacity={0.8}
+  >
+    <Text style={s.searchCardIcon}>📋</Text>
+    <View>
+      <Text style={[s.searchCardTitle, { color: '#007AFF' }]}>Copiar comidas de ayer</Text>
+      <Text style={s.searchCardSub}>Duplica tu registro anterior con un toque</Text>
+    </View>
+  </TouchableOpacity>
 
         {/* ── COMIDAS DEL DÍA ── */}
         <Text style={s.sectionLabel}>COMIDAS DEL DÍA</Text>
