@@ -44,7 +44,7 @@ const MEAL_CONFIG = {
 // ─── Helpers de fechas ────────────────────────────────────────────────────────
 function formatDate(date) {
   const d = new Date(date);
-  return d.toISOString().split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function getDaysAgo(days) {

@@ -4,15 +4,15 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
-import { supabase } from './src/lib/supabase';
-import { colors } from './src/lib/theme';
+import { supabase } from './lib/supabase';
+import { colors } from './lib/theme';
 
 // Screens
-import AuthScreen    from './src/screens/AuthScreen';
-import HomeScreen    from './src/screens/HomeScreen';
-import WorkoutScreen from './src/screens/WorkoutScreen';
+import AuthScreen    from './src/screens/authscreen';
+import HomeScreen    from './src/screens/homeScreen';
+import WorkoutScreen from './src/screens/workoutscreen';
 import RoutinesScreen from './src/screens/RoutinesScreen';
-import LibraryScreen from './src/screens/LibraryScreen';
+import LibraryScreen from './src/screens/libraryScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();

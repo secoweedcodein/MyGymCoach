@@ -1,6 +1,7 @@
 // src/hooks/useNutrition.js
 import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { todayKey } from '../../lib/dateUtils';
 
 const ACTIVITY = {
   sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9
@@ -38,7 +39,7 @@ export function useNutrition(userId) {
 
   const loadToday = useCallback(async () => {
     if (!userId) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKey();
 
     const [logsRes, goalsRes] = await Promise.all([
       supabase.from('nutrition_logs').select('*').eq('user_id', userId).eq('logged_date', today),

@@ -17,6 +17,13 @@ export default function Page() {
     loadCustomExercises(supabase);
   }, []);
 
+  // Tope de seguridad: si la animación no termina, no podemos dejar al
+  // usuario atrapado en el splash para siempre.
+  useEffect(() => {
+    const timeout = setTimeout(() => setAnimationFinished(true), 4000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     checkUser();
 

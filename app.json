@@ -8,17 +8,20 @@
     "icon": "assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "backgroundColor": "#0d0d10"
+      "backgroundColor": "#0d0d10",
+      "image": "assets/icon.png",
+      "resizeMode": "contain"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tuapp.mygymcoach"
+      "bundleIdentifier": "com.mygymcoach.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0d0d10"
+        "backgroundColor": "#0d0d10",
+        "foregroundImage": "assets/icon.png"
       },
-      "package": "com.tuapp.mygymcoach"
+      "package": "com.mygymcoach.app"
     },
     "plugins": [
       [

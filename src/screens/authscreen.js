@@ -15,20 +15,6 @@ export default function AuthScreen() {
   const [loading, setLoading]   = useState(false);
   const { showAlert } = useAlert();
   async function handleAuth() {
-    if (isLogin) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  console.log("LOGIN DATA:", data);
-  console.log("LOGIN ERROR:", error);
-
-  if (error) throw error;
-
-  showAlert("Éxito", "Sesión iniciada");
-}
-    console.log("URL:", supabase.supabaseUrl);
     if (!email || !password) {
       showAlert('Error', 'Completa todos los campos');
       return;
@@ -36,28 +22,12 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-  email,
-  password
-});
-
-console.log("LOGIN:", data);
-console.log("ERROR:", error);
-
-if (error) throw error;
-
-showAlert("Éxito", "Sesión iniciada");
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        showAlert('Éxito', 'Sesión iniciada');
       } else {
-        console.log("Intentando conectar con:", "https://ajajfeefrrwyqoaexkxl.supabase.co");
-        const result = await supabase.auth.signUp({
-  email,
-  password,
-});
-
-console.log("RESULTADO:", result);
-
-if (result.error) throw result.error;
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
         showAlert('¡Listo!', 'Revisa tu email para confirmar la cuenta.');
       }
     } catch (err) {

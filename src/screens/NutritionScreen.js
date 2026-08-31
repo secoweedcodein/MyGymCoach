@@ -2,11 +2,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Animated, ActivityIndicator, Modal,
-} from 'react-native';
+  StyleSheet, Animated, ActivityIndicator, Modal,} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { toDayKey, todayKey } from '../../lib/dateUtils';
 import BarcodeScannerScreen from '../../src/screens/BarcodeScannerScreen.js';
 import { copyYesterdayMeals } from '../../services/nutritionService';
 import { Alert } from 'react-native'; // Asegúrate de que Alert esté importado
@@ -162,7 +162,7 @@ export default function NutritionScreen() {
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKey();
 
     // ✅ NUEVO: Consultamos también la tabla saved_recipes
     const [logsRes, goalsRes, savedRecipesRes] = await Promise.all([
@@ -191,6 +191,64 @@ export default function NutritionScreen() {
     await supabase.from('nutrition_logs').delete().eq('id', id);
     loadAll();
   }
+    async function removeFood(id) {
+    await supabase.from('nutrition_logs').delete().eq('id', id);
+    loadAll();
+  }
+
+  // ── NUEVO: Función para copiar comidas de ayer ──────────────────────────────
+  const copyYesterdayMeals = async () => {
+    if (!userId) return;
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = toDayKey(yesterday);
+    const todayStr = todayKey();
+
+    try {
+      // 1. Obtener comidas de ayer
+      const { data: yesterdayLogs, error: fetchError } = await supabase
+        .from('nutrition_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('logged_date', yesterdayStr);
+
+      if (fetchError) throw fetchError;
+
+      if (!yesterdayLogs || yesterdayLogs.length === 0) {
+        Alert.alert('⚠️ Aviso', 'No hay comidas registradas el día de ayer.');
+        return;
+      }
+
+      // 2. Preparar datos para hoy (omitimos el 'id' para que Supabase genere uno nuevo)
+      const todayLogs = yesterdayLogs.map(log => ({
+        user_id: userId,
+        logged_date: todayStr,
+        meal_type: log.meal_type,
+        food_name: log.food_name,
+        food_id: log.food_id,
+        calories: log.calories,
+        protein_g: log.protein_g,
+        carbs_g: log.carbs_g,
+        fat_g: log.fat_g,
+        quantity_g: log.quantity_g,
+      }));
+
+      // 3. Insertar en la base de datos
+      const { error: insertError } = await supabase
+        .from('nutrition_logs')
+        .insert(todayLogs);
+
+      if (insertError) throw insertError;
+
+      Alert.alert('✅ ¡Éxito!', `Se copiaron ${todayLogs.length} comidas a hoy.`);
+      loadAll(); // Recargar la pantalla para mostrar los nuevos datos
+
+    } catch (error) {
+      console.error('Error al copiar comidas:', error);
+      Alert.alert('❌ Error', 'No se pudieron copiar las comidas. Intenta de nuevo.');
+    }
+  };
 
   const openScanner = (mealType) => {
     setCurrentMealType(mealType);
@@ -301,17 +359,21 @@ export default function NutritionScreen() {
           </>
         )}
   {/* ── BOTÓN COPIAR AYER ── */}
-  <TouchableOpacity 
-    style={[s.searchCard, { marginBottom: 16, backgroundColor: '#f0f9ff', borderColor: '#007AFF', borderWidth: 1 }]} 
-    onPress={handleCopyYesterday} 
-    activeOpacity={0.8}
-  >
-    <Text style={s.searchCardIcon}>📋</Text>
-    <View>
-      <Text style={[s.searchCardTitle, { color: '#007AFF' }]}>Copiar comidas de ayer</Text>
-      <Text style={s.searchCardSub}>Duplica tu registro anterior con un toque</Text>
-    </View>
-  </TouchableOpacity>
+          {/* ── BOTÓN COPIAR AYER ── */}
+        <TouchableOpacity 
+          style={s.copyYesterdayBtn} 
+          onPress={copyYesterdayMeals} 
+          activeOpacity={0.8}
+        >
+          <Text style={s.copyYesterdayIcon}>📋</Text>
+          <View>
+            <Text style={s.copyYesterdayTitle}>Copiar comidas de ayer</Text>
+            <Text style={s.copyYesterdaySub}>Duplica tu registro anterior con un toque</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* ── COMIDAS DEL DÍA ── */}
+        <Text style={s.sectionLabel}>COMIDAS DEL DÍA</Text>
 
         {/* ── COMIDAS DEL DÍA ── */}
         <Text style={s.sectionLabel}>COMIDAS DEL DÍA</Text>
@@ -494,4 +556,18 @@ const s = StyleSheet.create({
 
   fabScanner:  { position: 'absolute', bottom: 30, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', shadowColor: ACCENT, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   fabScannerText:{ fontSize: 24 },
+    copyYesterdayBtn: { 
+    backgroundColor: SURFACE, 
+    borderRadius: 16, 
+    padding: 14, 
+    borderWidth: 1, 
+    borderColor: ACCENT + '30', 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12, 
+    marginBottom: 16 
+  },
+  copyYesterdayIcon: { fontSize: 24 },
+  copyYesterdayTitle: { fontSize: 14, fontWeight: '700', color: ACCENT },
+  copyYesterdaySub: { fontSize: 11, color: T3, marginTop: 2 },
 });

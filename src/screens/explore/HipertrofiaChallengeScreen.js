@@ -1,4 +1,5 @@
 // src/screens/explore/HipertrofiaChallengeScreen.js
+import { todayKey } from '../../../lib/dateUtils';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
@@ -125,7 +126,7 @@ export default function HipertrofiaChallengeScreen() {
             name: CHALLENGE_DATA.name, // ⚠️ Nombre único
             is_challenge: true,
             challenge_type: 'hipertrofia_avanzada', // ⚠️ Tipo diferente
-            challenge_start_date: new Date().toISOString().split('T')[0],
+            challenge_start_date: todayKey(),
             challenge_duration_days: 30,
             description: CHALLENGE_DATA.description,
             exercise_ids: [],

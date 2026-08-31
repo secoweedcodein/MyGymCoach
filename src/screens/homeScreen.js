@@ -1,4 +1,5 @@
 // src/screens/HomeScreen.js
+import { todayKey } from '../../lib/dateUtils';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
@@ -260,7 +261,7 @@ export default function HomeScreen() {
       }
     }
 
-    const todayLogDate = new Date().toISOString().split('T')[0];
+    const todayLogDate = todayKey();
     const { data: nutData } = await supabase
       .from('nutrition_logs')
       .select('calories')

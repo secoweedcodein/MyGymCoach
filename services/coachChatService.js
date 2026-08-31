@@ -1,20 +1,12 @@
 // src/services/coachChatService.js
 /**
  * Servicio de chat con IA.
- * Preparado para OpenAI. Reemplaza la URL y API key según tu proveedor.
- * 
- * OPCIÓN RECOMENDADA: Crear un Edge Function en Supabase que haga de proxy
- * para no exponer la API key en el cliente.
+ * Delega en la Edge Function "coach-chat" de Supabase (proxy seguro de OpenAI),
+ * que añade el token de sesión automáticamente. Nunca expone la API key en el cliente.
  */
 import { supabase } from '../lib/supabase';
 
-
-
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-// ⚠️ En producción, usa un Edge Function de Supabase como proxy
-// En desarrollo puedes poner la key aquí temporalmente
-const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
-const MODEL = 'gpt-4o-mini'; // Más barato y rápido, suficiente para coaching
+const MODEL = 'gpt-4o-mini'; // Usado solo para el fallback offline (sin IA)
 
 export async function sendMessageToCoach(messages, userContext) {
   try {

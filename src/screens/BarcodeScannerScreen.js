@@ -1,15 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, Button, TouchableOpacity, 
   ActivityIndicator, Alert, TextInput 
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { router, useLocalSearchParams } from 'expo-router';
 import { addScannedFoodToLog } from '../../services/foodService';
 import { useAlert } from "../context/AlertContext";
+import { supabase } from '../../lib/supabase';
 const logger = {
   debug: (...args) => console.log('[DEBUG]', ...args),
   warn: (...args) => console.warn('[WARN]', ...args),
 };
+
+function safeNum(value) {
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 function mapOffProductToFood(product) {
   const n = product.nutriments ?? {};
@@ -18,8 +25,14 @@ function mapOffProductToFood(product) {
   if (product.serving_size) {
     const match = product.serving_size.match(/(\d+(?:\.\d+)?)\s*g/i);
     if (match) {
-      servingSize = parseFloat(match[1]);
+      servingSize = safeNum(match[1]) || 100;
     }
+  }
+
+  // kJ → kcal: energía en kcal si viene, si no divide los kJ entre 4.184
+  let calories = Math.round(safeNum(n['energy-kcal_100g']));
+  if (!calories) {
+    calories = Math.round(safeNum(n['energy_100g']) / 4.184);
   }
 
   return {
@@ -30,10 +43,10 @@ function mapOffProductToFood(product) {
     source: 'openfoodfacts',
     servingSize: servingSize,
     per100g: {
-      calories: Math.round(Number(n['energy-kcal_100g'] ?? n['energy_100g'] ?? 0)),
-      protein: Number(n['proteins_100g'] ?? 0),
-      carbs: Number(n['carbohydrates_100g'] ?? 0),
-      fat: Number(n['fat_100g'] ?? 0),
+      calories: calories,
+      protein: safeNum(n['proteins_100g']),
+      carbs: safeNum(n['carbohydrates_100g']),
+      fat: safeNum(n['fat_100g']),
     },
   };
 }
@@ -53,7 +66,8 @@ async function getFoodByBarcodeFromOFF(barcode) {
   }
 }
 
-function BarcodeScannerScreen({ userId, mealType, date, onFoodAdded, onClose }) {
+function BarcodeScannerScreen({ userId: initialUserId, mealType: initialMealType, date: initialDate, onFoodAdded, onClose }) {
+  const params = useLocalSearchParams();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -61,9 +75,28 @@ function BarcodeScannerScreen({ userId, mealType, date, onFoodAdded, onClose }) 
   const [productResult, setProductResult] = useState(null);
   const [quantity, setQuantity] = useState('100');
   const { showAlert } = useAlert();
+  const [resolvedUserId, setResolvedUserId] = useState(initialUserId);
+
+  const mealType = initialMealType || params.mealType || 'snack';
+
+  useEffect(() => {
+    if (initialUserId) setResolvedUserId(initialUserId);
+  }, [initialUserId]);
+
+  useEffect(() => {
+    if (resolvedUserId) return;
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.id) setResolvedUserId(data.user.id);
+    });
+  }, [resolvedUserId]);
+
+  function handleClose() {
+    if (onClose) onClose();
+    else router.back();
+  }
 
   if (!permission) {
-    return <View style={styles.container}><Text>Cargando permisos...</Text></View>;
+    return <View style={styles.container}><Text style={styles.text}>Cargando permisos...</Text></View>;
   }
 
   if (!permission.granted) {
@@ -96,8 +129,8 @@ function BarcodeScannerScreen({ userId, mealType, date, onFoodAdded, onClose }) 
   };
 
   const handleAddToMeal = async () => {
-    if (!productResult || !userId || !mealType) {
-     showAlert('Error', 'Faltan datos para agregar el alimento');
+    if (!productResult || !resolvedUserId || !mealType) {
+      showAlert('Error', 'Faltan datos para agregar el alimento');
       return;
     }
 
@@ -110,7 +143,7 @@ function BarcodeScannerScreen({ userId, mealType, date, onFoodAdded, onClose }) 
     setSaving(true);
     try {
       const result = await addScannedFoodToLog({
-        userId,
+        userId: resolvedUserId,
         food: productResult,
         mealType,
         quantityG,
@@ -167,6 +200,9 @@ function BarcodeScannerScreen({ userId, mealType, date, onFoodAdded, onClose }) 
 
       {/* Overlay con cuadro guía */}
       <View style={styles.overlay}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} activeOpacity={0.8}>
+          <Text style={styles.cancelBtnText}>✕ Cerrar</Text>
+        </TouchableOpacity>
         <View style={styles.scannerFrame} />
         <Text style={styles.instructionText}>
           Apunta al código de barras
@@ -261,6 +297,21 @@ const styles = StyleSheet.create({
     borderColor: '#00ff00',
     borderRadius: 12,
     backgroundColor: 'transparent',
+  },
+  cancelBtn: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    zIndex: 10,
+  },
+  cancelBtnText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
   },
   instructionText: {
     color: 'white',

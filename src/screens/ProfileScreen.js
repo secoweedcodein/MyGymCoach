@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from "../context/AlertContext";
 import BottomTabBar from '../../components/BottomTabBar';
-import { exportWorkoutHistory } from '../services/exportService';
+import { exportWorkoutHistory } from '../../services/exportService';
 // ── Tokens de diseño ──────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -44,7 +44,7 @@ function getAge(birthYear) {
 function daysAgoISO(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function calculateTDEE(profileData, activity) {
@@ -204,7 +204,7 @@ export default function ProfileScreen() {
 
     // 2. Sincronización con Coach IA: Guardar en el historial de peso
     if (profileData.weight_kg) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = daysAgoISO(0);
       await supabase.from('weight_logs').upsert({
         user_id: userId,
         weight_kg: profileData.weight_kg,

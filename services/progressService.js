@@ -75,12 +75,14 @@ export const checkAndSavePR = async (userId, exerciseName, weight, reps, session
   try {
     const estimated1RM = calculate1RM(weight, reps);
     
-    // Buscar récord actual
+    // Buscar récord actual (el más reciente del ejercicio)
     const { data: currentPR } = await supabase
       .from('personal_records')
       .select('*')
       .eq('user_id', userId)
       .eq('exercise_name', exerciseName)
+      .order('achieved_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     // Si no hay récord o el nuevo es mejor, guardar

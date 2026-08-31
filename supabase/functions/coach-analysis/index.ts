@@ -1,20 +1,41 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-);
-
+// FIX SEGURIDAD (IDOR): el userId se deriva del JWT del llamador y se consulta
+// con un cliente enmarcado en ese token (RLS restringe a sus propios datos).
+// Antes se aceptaba un userId del body y se consultaba con SERVICE_ROLE_KEY,
+// permitiendo a cualquier usuario leer los entrenamientos de cualquier otro.
 serve(async (req) => {
   try {
-    const { userId } = await req.json();
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'No autorizado' }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'No autorizado' }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = user.id;
 
     // Obtener últimas 3 semanas de entrenamientos
     const threeWeeksAgo = new Date();
     threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21);
 
-    const { data: sessions } = await supabase
+    const { data: sessions, error: sessionsError } = await supabase
       .from('workout_sessions')
       .select(`
         *,
@@ -23,6 +44,13 @@ serve(async (req) => {
       .eq('user_id', userId)
       .gte('started_at', threeWeeksAgo.toISOString())
       .order('started_at', { ascending: false });
+
+    if (sessionsError) {
+      return new Response(
+        JSON.stringify({ error: sessionsError.message }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     if (!sessions || sessions.length === 0) {
       return new Response(
@@ -36,7 +64,7 @@ serve(async (req) => {
     // Analizar estancamiento por ejercicio
     const exerciseProgress = {};
     sessions.forEach(session => {
-      session.workout_sets.forEach(set => {
+      (session.workout_sets || []).forEach(set => {
         if (!exerciseProgress[set.exercise_name]) {
           exerciseProgress[set.exercise_name] = [];
         }
@@ -68,7 +96,7 @@ serve(async (req) => {
 
     // Sugerencia de volumen
     const totalVolume = sessions.reduce((sum, s) => 
-      sum + s.workout_sets.reduce((v, set) => v + (set.weight_kg * set.reps), 0), 0
+      sum + (s.workout_sets || []).reduce((v, set) => v + (set.weight_kg * set.reps), 0), 0
     );
     
     if (totalVolume < 10000) {

@@ -1,4 +1,5 @@
 // src/screens/FoodSearchScreen.js
+import { todayKey } from '../../lib/dateUtils';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
@@ -148,7 +149,7 @@ export default function FoodSearchScreen() {
       carbs_g:     scaled.carbs,
       fat_g:       scaled.fat,
       quantity_g:  g,
-      logged_date: new Date().toISOString().split('T')[0],
+      logged_date: todayKey(),
     });
 
     setSaving(false);
@@ -190,7 +191,7 @@ export default function FoodSearchScreen() {
       carbs_g:     recipe.carbs || 0,
       fat_g:       recipe.fat || 0,
       quantity_g:  1, // 1 porción completa de la receta
-      logged_date: new Date().toISOString().split('T')[0],
+      logged_date: todayKey(),
     });
 
     setSaving(false);
@@ -204,21 +205,46 @@ export default function FoodSearchScreen() {
   async function toggleFavorite(food) {
     if (!userId) return;
     const existing = favorites.find(f => f.food_id === food.id);
+
+    // Optimista: actualizar UI al instante
+    setFavorites(prev => existing
+      ? prev.filter(f => f.food_id !== food.id)
+      : [{
+          user_id: userId,
+          food_name: food.name,
+          food_id: food.id,
+          calories: food.per100g.calories,
+          protein_g: food.per100g.protein,
+          carbs_g: food.per100g.carbs,
+          fat_g: food.per100g.fat,
+        }, ...prev]);
+
     if (existing) {
-      await supabase.from('food_favorites').delete().eq('id', existing.id);
-      setFavorites(prev => prev.filter(f => f.food_id !== food.id));
-    } else {
-      const { data } = await supabase.from('food_favorites').insert({
-        user_id:   userId,
-        food_name: food.name,
-        food_id:   food.id,
-        calories:  food.per100g.calories,
-        protein_g: food.per100g.protein,
-        carbs_g:   food.per100g.carbs,
-        fat_g:     food.per100g.fat,
-      }).select().single();
-      if (data) setFavorites(prev => [data, ...prev]);
+      const { error } = await supabase.from('food_favorites').delete().eq('id', existing.id);
+      if (error) {
+        setFavorites(prev => (prev.some(f => f.food_id === food.id) ? prev : [existing, ...prev]));
+        showAlert('Error', error.message || 'No se pudo actualizar el favorito');
+      }
+      return;
     }
+
+    const { data, error } = await supabase.from('food_favorites').insert({
+      user_id:   userId,
+      food_name: food.name,
+      food_id:   food.id,
+      calories:  food.per100g.calories,
+      protein_g: food.per100g.protein,
+      carbs_g:   food.per100g.carbs,
+      fat_g:     food.per100g.fat,
+    }).select().single();
+
+    if (error || !data) {
+      setFavorites(prev => prev.filter(f => f.food_id !== food.id));
+      showAlert('Error', error?.message || 'No se pudo guardar el favorito');
+      return;
+    }
+
+    setFavorites(prev => prev.map(f => (f.food_id === food.id ? data : f)));
   }
 
   function isFav(food) { return favorites.some(f => f.food_id === food.id); }
@@ -243,7 +269,7 @@ export default function FoodSearchScreen() {
         </View>
 
         <TouchableOpacity
-          onPress={() => router.push('/barcode')}
+          onPress={() => router.push({ pathname: '/barcode', params: { mealType } })}
           style={s.scanBtn}
           activeOpacity={0.8}
         >

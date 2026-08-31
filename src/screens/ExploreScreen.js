@@ -112,14 +112,25 @@ const EXERCISE_OF_DAY = {
 
 export default function ExploreScreen() {
   const [articles, setArticles] = useState([]);
-  useEffect(() => {
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState('trends');
+  const scrollRef = useRef(null);
+  const sectionY = useRef({});
+  const categoryBarRef = useRef(null);
+  const [trends, setTrends] = useState([]);
+  const [featured, setFeatured] = useState({
+    hero: { title: '30 días de hipertrofia', subtitle: 'Reto del mes', image_id: '30dias', route: '/explore/challenge-detail', participants: '12.548' },
+    exercise: { title: 'Dominadas lastradas', subtitle: 'Espalda y bíceps', image_id: 'dominadas', route: '/explore/exercise-day' },
+  });
+  const [userRecipes, setUserRecipes] = useState([]);
+
   async function loadArticles() {
     const { data } = await supabase
       .from('articles')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(3);
-    
+
     if (data) {
       setArticles(data.map(a => ({
         id: a.id,
@@ -130,35 +141,18 @@ export default function ExploreScreen() {
       })));
     }
   }
-  loadArticles();
-}, []);
-  const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState('trends');
-  const scrollRef = useRef(null);
-  const sectionY = useRef({});
-  const categoryBarRef = useRef(null);
-  const [trends, setTrends] = useState([]);
-  const [featured, setFeatured] = useState({
-  hero: { title: '30 días de hipertrofia', subtitle: 'Reto del mes', image_id: '30dias', route: '/explore/challenge-detail', participants: '12.548' },
-  exercise: { title: 'Dominadas lastradas', subtitle: 'Espalda y bíceps', image_id: 'dominadas', route: '/explore/exercise-day' },
-});
 
-useEffect(() => {
   async function loadFeatured() {
     const { data } = await supabase.from('featured_content').select('*');
-    if (data) {
-      const hero = data.find(d => d.id === 'hero_challenge');
-      const ex = data.find(d => d.id === 'exercise_of_day');
-      setFeatured({
-        hero: hero || featured.hero,
-        exercise: ex || featured.exercise,
-      });
-    }
+    if (!data) return;
+    const hero = data.find(d => d.id === 'hero_challenge');
+    const ex = data.find(d => d.id === 'exercise_of_day');
+    setFeatured(prev => ({
+      hero: hero || prev.hero,
+      exercise: ex || prev.exercise,
+    }));
   }
-  loadFeatured();
-}, []);
 
-  useEffect(() => {
   async function loadTrends() {
     const { data } = await supabase
       .from('trends')
@@ -167,40 +161,36 @@ useEffect(() => {
       .order('position', { ascending: true });
     if (data) setTrends(data);
   }
-  loadTrends();
-}, []);
-  // ✅ NUEVO: Estado para guardar las recetas reales de la base de datos
-  const [userRecipes, setUserRecipes] = useState([]);
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 700);
-    return () => clearTimeout(t);
-  }, []);
+  // Cargar las últimas 2 recetas de usuario desde Supabase
+  async function loadUserRecipes() {
+    const { data } = await supabase
+      .from('user_recipes')
+      .select('*')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(2);
 
-  // ✅ NUEVO: Cargar las últimas 2 recetas de usuario desde Supabase
-  useEffect(() => {
-    async function loadUserRecipes() {
-      const { data } = await supabase
-        .from('user_recipes')
-        .select('*')
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false })
-        .limit(2);
-      
-      if (data) {
-        setUserRecipes(data.map(r => ({
-          id: r.id,
-          name: r.recipe_name,
-          author: r.author_name,
-          protein: r.protein,
-          calories: r.calories,
-          time: r.time,
-          image: 'https://picsum.photos/seed/recipe/400/300', // Imagen placeholder
-        })));
-      }
+    if (data) {
+      setUserRecipes(data.map(r => ({
+        id: r.id,
+        name: r.recipe_name,
+        author: r.author_name,
+        protein: r.protein,
+        calories: r.calories,
+        time: r.time,
+        image: 'https://picsum.photos/seed/recipe/400/300', // Imagen placeholder
+      })));
     }
-    loadUserRecipes();
-  }, []);
+  }
+
+  const refresh = async () => {
+    setLoading(true);
+    await Promise.all([loadArticles(), loadTrends(), loadUserRecipes(), loadFeatured()]);
+    setLoading(false);
+  };
+
+  useEffect(() => { refresh(); }, []);
 
   const handleSectionLayout = useCallback((id) => (e) => {
     sectionY.current[id] = e.nativeEvent.layout.y;
@@ -240,7 +230,7 @@ useEffect(() => {
         <View onLayout={handleSectionLayout('trends')}>
   <FadeInUp delay={60}>
     <Section title="🔥 Tendencias" description="Lo más popular este mes" onSeeAll={() => router.push('/explore/trends')}>
-  {loading || trends.length === 0 ? <SkeletonRow /> : (
+  {loading ? <SkeletonRow /> : trends.length === 0 ? <EmptyState onRefresh={refresh} /> : (
     <HorizontalList data={trends} renderItem={(item) => (
       <ContentCard 
         key={item.id} 
@@ -287,12 +277,14 @@ useEffect(() => {
     description="Compartidas por la comunidad"
     onSeeAll={() => router.push('/explore/user-recipes')}
   >
-    {loading ? (
+{loading ? (
       <SkeletonRow />
+    ) : userRecipes.length === 0 ? (
+      <EmptyState onRefresh={refresh} />
     ) : (
       <HorizontalList data={userRecipes} renderItem={(item) => (
   <RecipeCard key={item.id} item={item} isUser={true} />
-)} />
+) } />
     )}
   </Section>
 </FadeInUp>
@@ -301,7 +293,7 @@ useEffect(() => {
         <View onLayout={handleSectionLayout('learn')}>
   <FadeInUp delay={200}>
     <Section title="📚 Aprende" description="Artículos, técnica y consejos" onSeeAll={() => router.push('/explore/learn')}>
-      {loading || articles.length === 0 ? <SkeletonRow /> : (
+      {loading ? <SkeletonRow /> : articles.length === 0 ? <EmptyState onRefresh={refresh} /> : (
         <HorizontalList data={articles} renderItem={(item) => <ArticleCard key={item.id} item={item} />} />
       )}
     </Section>
@@ -732,6 +724,11 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: ACCENT, borderColor: ACCENT },
   chipText: { fontSize: 13, fontWeight: '700', color: T2 },
   chipTextActive: { color: '#000' },
+  filterContainer: { marginBottom: 16, paddingLeft: 20 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: SURFACE2, borderWidth: 1, borderColor: BORDER, marginRight: 8 },
+  filterChipActive: { backgroundColor: ACCENT + '20', borderColor: ACCENT },
+  filterText: { fontSize: 12, fontWeight: '600', color: T2 },
+  filterTextActive: { color: ACCENT, fontWeight: '700' },
   scrollContent: { paddingTop: 8 },
   heroWrap: { marginHorizontal: 20, marginBottom: 36, borderRadius: 24, overflow: 'hidden', backgroundColor: SURFACE },
   heroImage: { width: '100%', height: 220 },

@@ -1,4 +1,6 @@
 // src/services/stepsService.js
+import { supabase } from '../lib/supabase';
+import { todayKey } from '../lib/dateUtils';
 
 // ⚠️ IMPORTANTE: Eliminamos la importación normal superior 'import { Pedometer } ...'
 // En su lugar, usamos un bloque try/catch para requerir el módulo de forma segura.
@@ -91,7 +93,7 @@ export function calculateMetrics(steps) {
  */
 export async function saveDailySteps({ userId, steps, goal }) {
   if (!userId) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayKey();
 
   try {
     const { error } = await supabase
@@ -138,14 +140,17 @@ export async function getStepsHistory(userId, daysLimit = 7) {
 export async function getUserStepsGoal(userId) {
   if (!userId) return 10000;
   try {
+    // user_profiles no tiene columna steps_goal; la meta se guarda en daily_steps.goal
     const { data, error } = await supabase
-      .from('user_profiles') // Ajusta al nombre de tu tabla de perfiles/configuración
-      .select('steps_goal')
+      .from('daily_steps')
+      .select('goal')
       .eq('user_id', userId)
-      .single();
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') throw error; // Ignorar si no se encuentra registro
-    return data?.steps_goal || 10000;
+    if (error && error.code !== 'PGRST116') throw error; // Ignorar si no hay registro
+    return data?.goal ?? 10000;
   } catch (error) {
     console.error("Error al obtener la meta de pasos:", error);
     return 10000;

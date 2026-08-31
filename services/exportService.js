@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { todayKey } from '../lib/dateUtils';
 
 export const exportWorkoutHistory = async (userId, format = 'json') => {
   try {
@@ -16,7 +17,7 @@ export const exportWorkoutHistory = async (userId, format = 'json') => {
     if (!sessions) return { success: false, error: 'No hay datos para exportar' };
 
     let content = '';
-    let fileName = `mygymcoach_export_${new Date().toISOString().split('T')[0]}`;
+    let fileName = `mygymcoach_export_${todayKey()}`;
 
     if (format === 'json') {
       content = JSON.stringify(sessions, null, 2);

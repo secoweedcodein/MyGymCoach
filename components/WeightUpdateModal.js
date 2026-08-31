@@ -1,4 +1,5 @@
 // src/components/WeightUpdateModal.js
+import { todayKey } from '../lib/dateUtils';
 import React, { useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, TextInput,
@@ -27,7 +28,7 @@ export default function WeightUpdateModal({ visible, onClose, userId }) {
     }
 
     setSaving(true);
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKey();
 
     const { error } = await supabase.from('weight_logs').upsert({
       user_id: userId,

@@ -357,7 +357,7 @@ function getLast7Days() {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     days.push({
-      date: d.toISOString().split('T')[0],
+      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
       label: labels[d.getDay()],
     });
   }

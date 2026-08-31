@@ -12,10 +12,12 @@ import ExerciseIcon from '../../components/ExerciseIcon.js';
 import RecordToast from '../../components/RecordToast.js';
 import { usePersonalRecords } from '../../src/screens/hooks/usePersonalRecords.js';
 import { useAlert } from "../context/AlertContext.js";
-import { checkAndSavePR } from '../../services/progressService';
+import { flushPendingSessions, saveWorkoutSession, enqueuePendingSession, isNetworkError } from '../../services/workoutQueueService';
 import { PlateCalculatorModal } from '../../components/PlateCalculatorModal.js';
 import { RPESelector } from '../../components/RPESelector.js';
 import { GymKeypad } from '../../components/GymKeypad.js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -31,7 +33,44 @@ const GREEN    = '#3DD68C';
 const ORANGE   = '#FF9500';
 const BLUE     = '#3E8EFF';
 const PURPLE   = '#A78BFA';
+// ── Persistencia de entrenamiento ─────────────────────────────────────────────
+const ACTIVE_WORKOUT_KEY = '@mygymcoach_active_workout';
 
+// Guardar estado actual en AsyncStorage
+const saveActiveWorkout = async (exercisesData, routineData, elapsedData) => {
+  try {
+    const workoutData = {
+      exercises: exercisesData,
+      routine: routineData,
+      elapsed: elapsedData,
+      savedAt: new Date().toISOString(),
+    };
+    await AsyncStorage.setItem(ACTIVE_WORKOUT_KEY, JSON.stringify(workoutData));
+  } catch (error) {
+    console.error('Error saving active workout:', error);
+  }
+};
+
+// Cargar estado guardado
+const loadActiveWorkout = async () => {
+  try {
+    const data = await AsyncStorage.getItem(ACTIVE_WORKOUT_KEY);
+    if (!data) return null;
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading active workout:', error);
+    return null;
+  }
+};
+
+// Eliminar estado guardado
+const clearActiveWorkout = async () => {
+  try {
+    await AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
+  } catch (error) {
+    console.error('Error clearing active workout:', error);
+  }
+};
 // ── Colores por tipo de serie ─────────────────────────────────────────────────
 const TYPE_CONFIG = {
   N: { color: BLUE,   label: 'Normal' },
@@ -195,7 +234,7 @@ export default function WorkoutScreen({ route }) {
   const [exercises, setExercises] = useState([]);
   const [userId, setUserId]       = useState(null);
 
-  const { loadRecords, checkRecord, newRecord, clearRecord } =
+  const { checkRecord, newRecord, clearRecord } =
     usePersonalRecords(userId);
 
   const [elapsed, setElapsed]         = useState(0);
@@ -206,7 +245,8 @@ export default function WorkoutScreen({ route }) {
   const restRef                       = useRef(null);
   const [showModal, setShowModal]     = useState(false);
   const [modalQuery, setModalQuery]   = useState('');
-
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoveredWorkout, setRecoveredWorkout] = useState(null);
   // Estados para nuevos componentes
   const [plateModalVisible, setPlateModalVisible] = useState(false);
   const [plateWeight, setPlateWeight]             = useState(60);
@@ -218,89 +258,99 @@ export default function WorkoutScreen({ route }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
-      await loadRecords();
+      flushPendingSessions();
 
-      // 1. Obtener IDs objetivo o usar fallback predeterminado
-      // 1. Si la rutina viene con ejercicios predefinidos (retos), úsalos directamente
-if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
-  const initialExercises = routine.exercises.map((ex, idx) => {
-    // Crear las series según el número definido en el reto
-    const numSets = ex.sets || 3;
-    const sets = [];
-    for (let i = 0; i < numSets; i++) {
-      sets.push({ 
-        kg: '', 
-        reps: ex.reps || '', 
-        type: 'N', 
-        done: false 
-      });
-    }
-    return {
-      exId: `challenge-${idx}`, // ID único para cada ejercicio del reto
-      name: ex.name, // Guardamos el nombre directamente
-      sets: sets,
-    };
-  });
-  setExercises(initialExercises);
-} else {
-  // 2. Fallback: usar exercise_ids y buscar en getExercise()
-  // ✅ Si la rutina viene con ejercicios predefinidos (retos), úsalos directamente
-if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
-  const initialExercises = routine.exercises.map((ex, idx) => {
-    const numSets = ex.sets || 3;
-    const sets = [];
-    for (let i = 0; i < numSets; i++) {
-      sets.push({ 
-        kg: '', 
-        reps: ex.reps || '', 
-        type: 'N', 
-        done: false 
-      });
-    }
-    return {
-      exId: `challenge-${idx}`,
-      name: ex.name,
-      muscle: 'Core',
-      sets: sets,
-    };
-  });
-  setExercises(initialExercises);
-} else {
-  // Fallback: usar exercise_ids
-  let targetIds = Array.isArray(routine?.exercise_ids) && routine.exercise_ids.length > 0
-    ? routine.exercise_ids
-    : ['abs_plank', 'abs_crunch', 'abs_russian'];
+      const savedWorkout = await loadActiveWorkout();
 
-  const initialExercises = targetIds.map(id => ({
-    exId: id,
-    sets: [{ kg: '', reps: '', type: 'N', done: false }],
-  }));
-  setExercises(initialExercises);
-}
-}
-
-      // 3. Cargar historial
-      try {
-        const historySets = await loadLastSessionData(user.id);
-        if (historySets?.length > 0) {
-          setExercises(
-            targetIds.map(id => {
-              const setsForEx = historySets.filter(s => s.exercise_id === id);
-              return {
-                exId: id,
-                sets: setsForEx.length > 0
-                  ? setsForEx.map(s => ({ kg: String(s.weight_kg), reps: String(s.reps), type: s.set_type, done: false }))
-                  : [{ kg: '', reps: '', type: 'N', done: false }],
-              };
-            })
-          );
-        }
-      } catch (err) {
-        console.log('Error cargando historial:', err);
+      if (savedWorkout && savedWorkout.exercises?.length > 0) {
+        setRecoveredWorkout(savedWorkout);
+        setShowRecoveryModal(true);
+        return;
       }
+
+      initializeNewWorkout();
     }
     init();
   }, [rawRoutine]);
+
+  const initializeNewWorkout = () => {
+    let targetIds = [];
+
+    if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
+      const initialExercises = routine.exercises.map((ex, idx) => {
+        const numSets = ex.sets || 3;
+        const sets = [];
+        for (let i = 0; i < numSets; i++) {
+          sets.push({ kg: '', reps: ex.reps || '', type: 'N', done: false });
+        }
+        return {
+          exId: `challenge-${idx}`,
+          name: ex.name,
+          muscle: 'Core',
+          sets: sets,
+        };
+      });
+      setExercises(initialExercises);
+      return;
+    }
+
+    targetIds = Array.isArray(routine?.exercise_ids) && routine.exercise_ids.length > 0
+      ? routine.exercise_ids
+      : ['abs_plank', 'abs_crunch', 'abs_russian'];
+
+    const initialExercises = targetIds.map(id => ({
+      exId: id,
+      sets: [{ kg: '', reps: '', type: 'N', done: false }],
+    }));
+    setExercises(initialExercises);
+
+    if (!userId) return;
+
+    loadLastSessionData(userId).then(historySets => {
+      if (historySets?.length > 0) {
+        setExercises(
+          targetIds.map(id => {
+            const setsForEx = historySets.filter(s => s.exercise_id === id);
+            return {
+              exId: id,
+              sets: setsForEx.length > 0
+                ? setsForEx.map(s => ({ kg: String(s.weight_kg), reps: String(s.reps), type: s.set_type, done: false }))
+                : [{ kg: '', reps: '', type: 'N', done: false }],
+            };
+          })
+        );
+      }
+    }).catch(err => {
+      console.log('Error cargando historial:', err);
+    });
+  };
+
+  const recoverWorkout = () => {
+    if (recoveredWorkout) {
+      setExercises(recoveredWorkout.exercises);
+      setElapsed(recoveredWorkout.elapsed || 0);
+      setShowRecoveryModal(false);
+      setRecoveredWorkout(null);
+    }
+  };
+
+  const discardRecovery = async () => {
+    await clearActiveWorkout();
+    setShowRecoveryModal(false);
+    setRecoveredWorkout(null);
+    initializeNewWorkout();
+  };
+    // Guardar automáticamente cuando cambian los ejercicios o el tiempo
+  useEffect(() => {
+    if (exercises.length > 0 && userId) {
+      // Debounce: esperar 1 segundo antes de guardar para no saturar
+      const timeoutId = setTimeout(() => {
+        saveActiveWorkout(exercises, routine, elapsed);
+      }, 1000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [exercises, elapsed]);
 
   useEffect(() => {
     elapsedRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -374,21 +424,6 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
     });
   }
 
-  const handleSetComplete = async (exerciseName, weight, reps) => {
-    if (!userId || !exerciseName) return;
-
-    const safeWeight = Number(weight);
-    const safeReps = Number(reps);
-    if (!Number.isFinite(safeWeight) || !Number.isFinite(safeReps) || safeWeight <= 0 || safeReps <= 0) {
-      return;
-    }
-
-    const result = await checkAndSavePR(userId, exerciseName, safeWeight, safeReps, null);
-    if (result?.isNewPR) {
-      Alert.alert('🏆 ¡Nuevo Récord!', `${exerciseName}: ${safeWeight}kg × ${safeReps} reps`);
-    }
-  };
-
   async function toggleDone(ei, si) {
     const set     = exercises[ei].sets[si];
     const wasDone = set.done;
@@ -412,7 +447,6 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
           { exId: String(exercises[ei].exId), name: ex.name },
           { kg: set.kg, reps: set.reps }
         );
-        await handleSetComplete(ex.name, set.kg, set.reps);
       }
     }
   }
@@ -442,38 +476,6 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
   function addExerciseFromModal(exId) {
     setExercises(prev => [...prev, { exId, sets: [{ kg: '', reps: '', type: 'N', done: false }] }]);
     setShowModal(false);
-  }
-
-  async function detectAndSaveRecords(userId, sets) {
-    for (const set of sets) {
-      if (!set.exercise_name || set.weight_kg <= 0) continue;
-
-      const { data: previousRecord } = await supabase
-        .from('personal_records')
-        .select('weight_kg, reps')
-        .eq('user_id', userId)
-        .eq('exercise_name', set.exercise_name)
-        .order('weight_kg', { ascending: false })
-        .order('reps', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const isNewRecord = !previousRecord || 
-        set.weight_kg > previousRecord.weight_kg ||
-        (set.weight_kg === previousRecord.weight_kg && set.reps > previousRecord.reps);
-
-      if (isNewRecord) {
-        await supabase.from('personal_records').insert({
-          user_id: userId,
-          exercise_id: set.exercise_id,
-          exercise_name: set.exercise_name,
-          weight_kg: set.weight_kg,
-          reps: set.reps,
-          achieved_at: new Date().toISOString(),
-          session_id: set.session_id,
-        });
-      }
-    }
   }
 
   // ── Guardar sesión ────────────────────────────────────────────────────────
@@ -507,24 +509,6 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
               return;
             }
 
-            const { data: session, error: sessionError } = await supabase
-              .from('workout_sessions')
-              .insert({
-                user_id:          userId,
-                routine_name:     routine?.name || 'Entrenamiento',
-                finished_at:      new Date().toISOString(),
-                total_sets:       totalSets,
-                total_volume_kg:  Math.round(totalVolume),
-                duration_minutes: Math.round(elapsed / 60),
-              })
-              .select()
-              .single();
-
-            if (sessionError || !session) {
-              showAlert('Error', sessionError?.message || 'No se pudo guardar la sesión.');
-              return;
-            }
-
             const setsToInsert = [];
             for (const e of exercises) {
               const ex = e.name 
@@ -533,7 +517,6 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
               for (const [si, s] of e.sets.entries()) {
                 if (s.done) {
                   setsToInsert.push({
-                    session_id: session.id,
                     exercise_id: e.exId,
                     exercise_name: ex?.name || 'Ejercicio',
                     set_number: si + 1,
@@ -546,14 +529,45 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
                 }
               }
             }
-            
-            if (setsToInsert.length) {
-              await supabase.from('workout_sets').insert(setsToInsert);
-              await detectAndSaveRecords(userId, setsToInsert);
+
+            const payload = {
+              session: {
+                user_id:          userId,
+                routine_name:     routine?.name || 'Entrenamiento',
+                started_at:       new Date(Date.now() - elapsed * 1000).toISOString(),
+                finished_at:      new Date().toISOString(),
+                total_sets:       totalSets,
+                total_volume_kg:  Math.round(totalVolume),
+                duration_minutes: Math.round(elapsed / 60),
+              },
+              sets: setsToInsert,
+            };
+
+            try {
+              await saveWorkoutSession(payload);
+            } catch (saveError) {
+              if (isNetworkError(saveError)) {
+                const queued = await enqueuePendingSession({ payload });
+                Vibration.vibrate([0, 200, 100, 200]);
+                showAlert(
+                  'Sin conexión',
+                  queued
+                    ? 'Tu sesión se guardó en el dispositivo y se sincronizará cuando tengas conexión.'
+                    : 'No se pudo guardar la sesión. Intenta de nuevo.'
+                );
+                await clearActiveWorkout();
+                setTimeout(() => router.back(), 1500);
+                return;
+              }
+              showAlert('Error', saveError?.message || 'No se pudo guardar la sesión.');
+              return;
             }
 
             Vibration.vibrate([0, 200, 100, 200]);
             showAlert('¡Sesión guardada! 💪', `${totalSets} series · ${Math.round(totalVolume)} kg`);
+
+            // Limpiar el entrenamiento guardado
+            await clearActiveWorkout();
 
             setTimeout(() => router.back(), 1500);
           },
@@ -754,6 +768,36 @@ if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
 
       {/* Toast récord */}
       <RecordToast record={newRecord} onHide={clearRecord} />
+
+      <Modal visible={showRecoveryModal} transparent animationType="fade">
+        <View style={s.recoveryOverlay}>
+          <View style={s.recoveryModal}>
+            <Text style={s.recoveryIcon}>💪</Text>
+            <Text style={s.recoveryTitle}>¿Continuar entrenamiento?</Text>
+            <Text style={s.recoveryText}>
+              {'Tienes un entrenamiento en curso\n'}
+              {recoveredWorkout?.exercises?.length > 0 &&
+                `con ${recoveredWorkout.exercises.length} ejercicios`}
+            </Text>
+            <View style={s.recoveryButtons}>
+              <TouchableOpacity
+                style={s.recoveryBtnDiscard}
+                onPress={discardRecovery}
+                activeOpacity={0.8}
+              >
+                <Text style={s.recoveryBtnDiscardText}>Empezar nuevo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.recoveryBtnContinue}
+                onPress={recoverWorkout}
+                activeOpacity={0.8}
+              >
+                <Text style={s.recoveryBtnContinueText}>Continuar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal Calculadora de Discos */}
       <PlateCalculatorModal
@@ -1014,4 +1058,36 @@ const s = StyleSheet.create({
   modalItemName:{ fontSize: 14, fontWeight: '600', color: T1 },
   modalItemSub: { fontSize: 12, color: T3, marginTop: 2 },
   typeBadge:   { fontSize: 11, fontWeight: '600' },
+    recoveryOverlay: { 
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', 
+    justifyContent: 'center', alignItems: 'center', padding: 20 
+  },
+  recoveryModal: { 
+    backgroundColor: SURFACE, borderRadius: 24, padding: 30, 
+    width: '100%', maxWidth: 340, alignItems: 'center',
+    borderWidth: 1, borderColor: BORDER 
+  },
+  recoveryIcon: { fontSize: 48, marginBottom: 16 },
+  recoveryTitle: { 
+    fontSize: 20, fontWeight: '800', color: T1, 
+    marginBottom: 12, textAlign: 'center' 
+  },
+  recoveryText: { 
+    fontSize: 14, color: T2, textAlign: 'center', 
+    marginBottom: 24, lineHeight: 20 
+  },
+  recoveryButtons: { 
+    flexDirection: 'row', gap: 12, width: '100%' 
+  },
+  recoveryBtnDiscard: { 
+    flex: 1, backgroundColor: SURFACE2, borderRadius: 14, 
+    paddingVertical: 14, alignItems: 'center',
+    borderWidth: 1, borderColor: BORDER2 
+  },
+  recoveryBtnDiscardText: { fontSize: 14, fontWeight: '700', color: T2 },
+  recoveryBtnContinue: { 
+    flex: 1, backgroundColor: ACCENT, borderRadius: 14, 
+    paddingVertical: 14, alignItems: 'center' 
+  },
+  recoveryBtnContinueText: { fontSize: 14, fontWeight: '800', color: '#000' },
 });

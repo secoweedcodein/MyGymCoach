@@ -11,6 +11,7 @@ import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 
 import { supabase } from '../../lib/supabase';
+import { getUserStreak } from '../../services/streakService';
 import { colors, radius, spacing, type, shadow } from '../../lib/theme';
 
 const width = Dimensions.get('window').width - spacing.md * 2;
@@ -69,7 +70,7 @@ export default function DashboardScreen() {
     const current = rangeFor(period, 0);
     const previous = rangeFor(period, 1);
 
-    const [{ data: currentData }, { data: previousData }, { data: streakData }] =
+    const [{ data: currentData }, { data: previousData }] =
       await Promise.all([
         supabase
           .from('workout_sessions')
@@ -84,15 +85,9 @@ export default function DashboardScreen() {
           .eq('user_id', user.id)
           .gte('finished_at', previous.start.toISOString())
           .lte('finished_at', previous.end.toISOString()),
-        // últimos 60 días alcanzan de sobra para calcular la racha actual
-        supabase
-          .from('workout_sessions')
-          .select('finished_at')
-          .eq('user_id', user.id)
-          .not('finished_at', 'is', null)
-          .order('finished_at', { ascending: false })
-          .limit(200),
       ]);
+
+    const { currentStreak } = await getUserStreak(user.id);
 
     const data = currentData || [];
     const prevData = previousData || [];
@@ -110,7 +105,7 @@ export default function DashboardScreen() {
       workouts: percentDelta(workouts, prevData.length),
       volume: percentDelta(volume, prevVolume),
     });
-    setStreak(computeStreak(streakData || []));
+    setStreak(currentStreak || 0);
 
     const recent = data.slice(-7);
     setChartData({
@@ -229,22 +224,6 @@ export default function DashboardScreen() {
 function percentDelta(current, previous) {
   if (!previous) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
-}
-
-function computeStreak(rows) {
-  if (!rows.length) return 0;
-  const days = new Set(
-    rows.map((r) => new Date(r.finished_at).toDateString())
-  );
-  let streak = 0;
-  const cursor = new Date();
-  // Permite que "hoy" no cuente en contra si todavía no entrenaste
-  if (!days.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1);
-  while (days.has(cursor.toDateString())) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
 }
 
 function Card({ value, label, trend, accent }) {

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'; //
+import { todayKey } from '../lib/dateUtils'; //
 
 // ─── Configuración ────────────────────────────────────────────────────────────
 const CONFIG = Object.freeze({
@@ -107,16 +108,20 @@ function mapDbRowToFood(row) {
 /** @param {Object} product — producto crudo de Open Food Facts */
 function mapOffProductToFood(product) {
   const n = product.nutriments ?? {}; //
-  const energyKcal = n['energy-kcal_100g'] ?? n['energy_100g'] ?? 0; //
+  let energyKcal = safeNumber(n['energy-kcal_100g']); //
+  if (!energyKcal) {
+    energyKcal = safeNumber(n['energy_100g']) / 4.184; // kJ → kcal
+  }
 
   return {
     id:       null,
     barcode:  product.code ?? null, //
-    name:     product.product_name.trim(),
+    name:     product.product_name?.trim() || 'Producto desconocido',
     brand:    product.brands ?? '', //
+    image:    product.image_url ?? product.image_front_url ?? null,
     source:   'openfoodfacts',
     per100g: {
-      calories: Math.round(safeNumber(energyKcal)),
+      calories: Math.round(energyKcal),
       protein:  roundTo(safeNumber(n['proteins_100g'])),
       carbs:    roundTo(safeNumber(n['carbohydrates_100g'])),
       fat:      roundTo(safeNumber(n['fat_100g'])),
@@ -185,7 +190,7 @@ export async function addScannedFoodToLog({ userId, food, mealType, quantityG })
       fat_g: roundTo((food.per100g?.fat ?? 0) * factor),
     };
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKey();
 
     const { data, error } = await supabase
       .from('nutrition_logs')

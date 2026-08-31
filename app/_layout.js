@@ -2,8 +2,7 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { AlertProvider } from '../src/context/AlertContext';
 import { SheetProvider } from '../src/context/SheetContext';
-import { ErrorBoundary } from '../components/ErrorBoundary'; // Ajusta la ruta según la ubicación real de tu componente
-import { FloatingRestTimer } from '../components/FloatingRestTimer';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 export default function RootLayout() {
   return (
@@ -18,7 +17,6 @@ export default function RootLayout() {
           </Stack>
         </AlertProvider>
       </SheetProvider>
-      <FloatingRestTimer />
     </ErrorBoundary>
   );
 }

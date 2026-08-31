@@ -1,5 +1,6 @@
 // src/services/coachAnalysis.js
 import { supabase } from '../lib/supabase';
+import { toDayKey } from '../lib/dateUtils';
 
 const logger = {
   debug: (...args) => console.log('[coachAnalysis]', ...args),
@@ -7,24 +8,24 @@ const logger = {
 };
 
 // ─── Utilidades de fecha ──────────────────────────────────────────────────────
-function todayISO() { return new Date().toISOString().split('T')[0]; }
+function todayISO() { return toDayKey(new Date()); }
 function daysAgoISO(n) {
   const d = new Date(); d.setDate(d.getDate() - n);
-  return d.toISOString().split('T')[0];
+  return toDayKey(d);
 }
 function startOfWeekISO() {
   const d = new Date();
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff); d.setHours(0, 0, 0, 0);
-  return d.toISOString().split('T')[0];
+  return toDayKey(d);
 }
 function startOfLastWeekISO() {
   const d = new Date();
   const day = d.getDay();
   const diff = d.getDate() - day - 6;
   d.setDate(diff); d.setHours(0, 0, 0, 0);
-  return d.toISOString().split('T')[0];
+  return toDayKey(d);
 }
 
 // ─── Carga maestra de datos ───────────────────────────────────────────────────
@@ -35,17 +36,12 @@ function startOfLastWeekISO() {
 // ─── Carga maestra de datos con DIAGNÓSTICO ───────────────────────────────────
 export async function loadAllCoachData(userId) {
   if (!userId) {
-    console.log('[coach] ❌ No hay userId');
     return null;
   }
 
-  console.log('[coach] 🔍 Usuario:', userId);
-  
   const today = todayISO();
   const weekStart = startOfWeekISO();
   const lastWeekStart = startOfLastWeekISO();
-
-  console.log('[coach] 📅 Fechas calculadas:', { today, weekStart, lastWeekStart });
 
   const [
     goalsRes,
@@ -71,22 +67,7 @@ export async function loadAllCoachData(userId) {
     supabase.from('user_profiles').select('calorie_goal, protein_goal, weight_kg, height_cm').eq('id', userId).maybeSingle(),
   ]);
 
-  // 🔍 LOGS DETALLADOS PARA DIAGNÓSTICO
-  console.log('[coach] 📊 RESULTADOS:');
-  console.log('  - nutrition_goals:', goalsRes.data ? '✅' : '❌', goalsRes.error?.message);
-  console.log('  - todayNutrition:', todayNutritionRes.data?.length || 0, 'registros');
-  console.log('    → Datos:', todayNutritionRes.data);
-  console.log('    → Error:', todayNutritionRes.error?.message);
-  console.log('  - weekNutrition:', weekNutritionRes.data?.length || 0, 'registros');
-  console.log('    → Datos:', weekNutritionRes.data?.slice(0, 3));
-  console.log('  - todayWorkout:', todayWorkoutRes.data?.length || 0, 'registros');
-  console.log('  - thisWeekWorkouts:', thisWeekWorkoutsRes.data?.length || 0, 'registros');
-  console.log('  - lastWeekWorkouts:', lastWeekWorkoutsRes.data?.length || 0, 'registros');
-  console.log('  - recentSets:', recentSetsRes.data?.length || 0, 'registros');
-  console.log('  - personal_records:', recordsRes.data?.length || 0, 'registros');
-  console.log('  - weight_logs:', weightRes.data?.length || 0, 'registros');
-  console.log('  - user_profiles:', goalsCalRes.data ? '✅' : '❌');
-
+  // 🔍 RESULTADOS (solo conteo, sin datos personales)
   return {
     goals: goalsRes.data || { calories: 2000, protein_g: 150, carbs_g: 250, fat_g: 70 },
     todayNutrition: todayNutritionRes.data || [],
@@ -105,13 +86,6 @@ export async function loadAllCoachData(userId) {
 // ─── SECCIÓN 1: Resumen del día ───────────────────────────────────────────────
 export function analyzeDailySummary(data) {
   const { goals, todayNutrition, todayWorkout } = data;
-  
-  console.log('[analyzeDailySummary] 🔍 INPUT:', {
-    goalsCalories: goals?.calories,
-    goalsProtein: goals?.protein_g,
-    todayNutritionCount: todayNutrition?.length,
-    todayNutritionData: todayNutrition,
-  });
   
   const caloriesConsumed = todayNutrition.reduce((a, l) => a + (l.calories || 0), 0);
   const proteinConsumed = todayNutrition.reduce((a, l) => a + (l.protein_g || 0), 0);
@@ -143,8 +117,6 @@ export function analyzeDailySummary(data) {
     recommendation,
   };
 
-  console.log('[analyzeDailySummary] ✅ OUTPUT:', result);
-  
   return result;
 }
 

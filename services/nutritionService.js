@@ -1,11 +1,12 @@
 import { supabase } from '../lib/supabase';
+import { toDayKey, todayKey } from '../lib/dateUtils';
 
 export const copyYesterdayMeals = async (userId) => {
   try {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const yesterdayStr = toDayKey(yesterday);
+    const todayStr = todayKey();
 
     // 1. Obtener comidas de ayer
     const { data: yesterdayLogs, error: fetchError } = await supabase

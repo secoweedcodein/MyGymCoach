@@ -1,4 +1,5 @@
 // src/screens/explore/ChallengeDetailDynamicScreen.js
+import { todayKey } from '../../../lib/dateUtils';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
@@ -74,7 +75,7 @@ export default function ChallengeDetailDynamicScreen() {
       const { data: newRoutine, error } = await supabase.from('routines').insert({
         user_id: user.id, name: `Reto: ${challenge.name}`, is_challenge: true,
         challenge_type: 'custom',
-        challenge_start_date: new Date().toISOString().split('T')[0],
+        challenge_start_date: todayKey(),
         challenge_duration_days: challenge.duration_days || 30,
         description: challenge.description || '', exercise_ids: [],
         created_at: new Date().toISOString(),

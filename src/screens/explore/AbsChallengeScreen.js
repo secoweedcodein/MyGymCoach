@@ -1,4 +1,5 @@
 // src/screens/explore/AbsChallengeScreen.js
+import { todayKey } from '../../../lib/dateUtils';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
@@ -95,7 +96,7 @@ export default function AbsChallengeScreen() {
             name: CHALLENGE_DATA.name,
             is_challenge: true,
             challenge_type: 'abs',
-            challenge_start_date: new Date().toISOString().split('T')[0],
+            challenge_start_date: todayKey(),
             challenge_duration_days: 30,
             description: CHALLENGE_DATA.description,
             exercise_ids: [18, 126, 95, 96, 114, 127], 

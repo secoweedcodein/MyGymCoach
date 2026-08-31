@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import WorkoutScreen from '../../src/screens/workoutscreen';
+import WorkoutScreen from '../src/screens/workoutscreen';
 
 export default function WorkoutPage() {
   const { routine } = useLocalSearchParams();
@@ -8,7 +8,7 @@ export default function WorkoutPage() {
     <WorkoutScreen
       route={{
         params: {
-          routine: JSON.parse(routine),
+          routine: typeof routine === 'string' ? JSON.parse(routine) : routine,
         },
       }}
     />

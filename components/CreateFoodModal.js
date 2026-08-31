@@ -31,6 +31,13 @@ const [alertMessage,setAlertMessage]=useState("");
 const [alertType,setAlertType]=useState("info");
   const [similarFoods, setSimilarFoods] = useState([]);
 
+  const showAlert = (title, message, type = "info") => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertType(type);
+    setAlertVisible(true);
+  };
+
   
   const [formData, setFormData] = useState({
     name: '',
@@ -164,17 +171,6 @@ const [alertType,setAlertType]=useState("info");
   };
 
   const updateField = (field, value) => {
-    function showAlert(title,message,type="info"){
-
-setAlertTitle(title);
-
-setAlertMessage(message);
-
-setAlertType(type);
-
-setAlertVisible(true);
-
-}
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 

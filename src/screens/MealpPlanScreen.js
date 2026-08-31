@@ -1,4 +1,5 @@
 // src/screens/MealPlanScreen.js
+import { toDayKey, todayKey } from '../../lib/dateUtils';
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
@@ -60,7 +61,7 @@ export default function MealPlanScreen() {
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
 
-    const weekStr = weekStart.toISOString().split('T')[0];
+    const weekStr = toDayKey(weekStart);
 
     const [planRes, goalsRes] = await Promise.all([
       supabase.from('meal_plans').select('*').eq('user_id', user.id).eq('week_start', weekStr).order('day_of_week').order('meal_type'),
@@ -94,7 +95,7 @@ export default function MealPlanScreen() {
     const items = plan.filter(p => p.day_of_week === dayIndex);
     if (items.length === 0) { showAlert('Día vacío', 'No hay alimentos planificados para este día.'); return; }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKey();
     const toInsert = items.map(item => ({
       user_id:     userId,
       meal_type:   item.meal_type,
@@ -217,7 +218,7 @@ export default function MealPlanScreen() {
                     mealType:  meal.key,
                     planMode:  'true',
                     dayOfWeek: String(activeDay),
-                    weekStart: weekStart.toISOString().split('T')[0],
+                    weekStart: toDayKey(weekStart),
                   }
                 })}
                 activeOpacity={0.8}
@@ -255,7 +256,7 @@ export default function MealPlanScreen() {
                     mealType:  meal.key,
                     planMode:  'true',
                     dayOfWeek: String(activeDay),
-                    weekStart: weekStart.toISOString().split('T')[0],
+                    weekStart: toDayKey(weekStart),
                   }
                 })}
                 activeOpacity={0.7}
