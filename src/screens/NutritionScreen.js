@@ -7,7 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { toDayKey, todayKey } from '../../lib/dateUtils';
-import BarcodeScannerScreen from '../../src/screens/BarcodeScannerScreen.js';
+import BarcodeScannerScreen from './BarcodeScannerScreen.js';
 import { copyYesterdayMeals } from '../../services/nutritionService';
 import { Alert } from 'react-native'; // Asegúrate de que Alert esté importado
 

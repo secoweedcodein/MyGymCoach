@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { useAlert } from "../context/AlertContext";
 import BottomTabBar from '../../components/BottomTabBar';
 import { exportWorkoutHistory } from '../../services/exportService';
+import { WeightChart } from '../../components/WeightChart';
 // ── Tokens de diseño ──────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -263,6 +264,7 @@ export default function ProfileScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <ScrollView style={p.container} showsVerticalScrollIndicator={false}>
+      {userId && <WeightChart userId={userId} />}
         {/* Header de Perfil */}
         <View style={p.profileHeader}>
           <View style={p.avatar}>

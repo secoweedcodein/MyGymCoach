@@ -10,7 +10,7 @@ import { colors, radius, spacing } from '../../lib/theme.js';
 import { router, useLocalSearchParams } from 'expo-router';
 import ExerciseIcon from '../../components/ExerciseIcon.js';
 import RecordToast from '../../components/RecordToast.js';
-import { usePersonalRecords } from '../../src/screens/hooks/usePersonalRecords.js';
+import { usePersonalRecords } from './hooks/usePersonalRecords.js';
 import { useAlert } from "../context/AlertContext.js";
 import { flushPendingSessions, saveWorkoutSession, enqueuePendingSession, isNetworkError } from '../../services/workoutQueueService';
 import { PlateCalculatorModal } from '../../components/PlateCalculatorModal.js';

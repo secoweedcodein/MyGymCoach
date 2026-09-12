@@ -96,6 +96,7 @@ const { showAlert } = useAlert();
     if (error) { showAlert('Error', error.message); return; }
     resetForm();
     initScreen();
+    showAlert('Rutina creada', 'Tu rutina se guardó correctamente.');
   }
 
   // ── Eliminar rutina ──────────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ const { showAlert } = useAlert();
     setNewExMuscle('Pecho');
     setNewExType('Hipertrofia');
     setShowModal(false);
+    showAlert('Ejercicio creado', 'Tu ejercicio se guardó en tu cuenta.');
   }
 
   // ── Lista filtrada ───────────────────────────────────────────────────────────

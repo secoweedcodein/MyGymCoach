@@ -10,7 +10,24 @@ export default function RecordsScreen() {
   useEffect(() => {
     fetchRecords();
   }, []);
+// Función para calcular 1RM (fórmula Brzycki)
+const calculate1RM = (weight, reps) => {
+  if (!weight || !reps || reps >= 37) return 0;
+  return Math.round(weight * (36 / (37 - reps)));
+};
 
+// En tu renderizado de cada récord:
+<View style={s.recordRow}>
+  <Text style={s.exerciseName}>{record.exercise_name}</Text>
+  <View style={s.recordStats}>
+    <Text style={s.recordValue}>
+      {record.weight_kg}kg × {record.reps} reps
+    </Text>
+    <Text style={s.oneRM}>
+      1RM: {calculate1RM(record.weight_kg, record.reps)}kg
+    </Text>
+  </View>
+</View>
   async function fetchRecords() {
     try {
       const { data: { user } } = await supabase.auth.getUser();

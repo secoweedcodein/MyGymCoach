@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Dimensions, Image, Animated, Pressable,
+  Dimensions, Image, Animated, Pressable, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -145,8 +145,11 @@ export default function ExploreScreen() {
   async function loadFeatured() {
     const { data } = await supabase.from('featured_content').select('*');
     if (!data) return;
-    const hero = data.find(d => d.id === 'hero_challenge');
-    const ex = data.find(d => d.id === 'exercise_of_day');
+    
+    // ✅ CAMBIO: Usar los nuevos IDs que definimos en el admin
+    const hero = data.find(d => d.id === 'reto_mes');
+    const ex = data.find(d => d.id === 'ejercicio_dia');
+    
     setFeatured(prev => ({
       hero: hero || prev.hero,
       exercise: ex || prev.exercise,
@@ -376,12 +379,27 @@ function CategoryBar({ activeCategory, onSelect }) {
   );
 }
 
+function featuredImageSource(imageId, fallbackKey) {
+  if (!imageId) return FEATURED_IMAGES[fallbackKey];
+  if (typeof imageId === 'string' && imageId.startsWith('http')) return { uri: imageId };
+  return FEATURED_IMAGES[imageId] || FEATURED_IMAGES[fallbackKey];
+}
+
 function HeroCard({ data }) {
   const scale = useRef(new Animated.Value(1)).current;
   function pressIn() { Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 30 }).start(); }
   function pressOut() { Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20 }).start(); }
 
-  const imageSource = FEATURED_IMAGES[data?.image_id] || FEATURED_IMAGES['30dias'];
+  const imageSource = featuredImageSource(data?.image_id, '30dias');
+
+  const handleParticipate = () => {
+    if (data?.route && data?.target_id) {
+      // ✅ Pasar el target_id real a la pantalla de detalle
+      router.push({ pathname: data.route, params: { id: data.target_id } });
+    } else {
+      Alert.alert('Reto del mes', 'Aún no hay un reto asignado por el administrador');
+    }
+  };
 
   return (
     <Pressable onPressIn={pressIn} onPressOut={pressOut} style={s.heroWrap}>
@@ -395,10 +413,10 @@ function HeroCard({ data }) {
             <Ionicons name="people" size={14} color={T2} />
             <Text style={s.heroMetaText}>{data?.participants || '0'} participantes</Text>
           </View>
-          <TouchableOpacity 
+                    <TouchableOpacity 
             style={s.heroBtn} 
             activeOpacity={0.85} 
-            onPress={() => data?.route && router.push(data.route)}
+            onPress={handleParticipate}
           >
             <Text style={s.heroBtnText}>Participar</Text>
           </TouchableOpacity>
@@ -461,7 +479,7 @@ function PressableCard({ style, children, onPress }) {
 }
 
 function ContentCard({ item }) {
-  const handlePress = () => {
+  const handlePress = async () => {
     // ✅ PRIORIDAD 1: Si viene con ruta directa desde Supabase, usarla SIEMPRE
     if (item.route && item.route.trim()) {
       router.push(item.route.trim());
@@ -476,7 +494,17 @@ function ContentCard({ item }) {
     } else if (titleLower.includes('hipertrofia') && titleLower.includes('avanzada')) {
       router.push('/explore/hipertrofia-challenge');
     } else if (titleLower.includes('hipertrofia') && titleLower.includes('30')) {
-      router.push('/explore/challenge-detail');
+      // Buscar el reto real por nombre para abrir su detalle dinámico
+      try {
+        const { data: challenge } = await supabase
+          .from('challenges')
+          .select('id')
+          .eq('name', item.title)
+          .maybeSingle();
+        router.push(challenge ? `/explore/challenge-detail?id=${challenge.id}` : '/explore/challenge-detail');
+      } catch {
+        router.push('/explore/challenge-detail');
+      }
     } else if (item.id && ['upper', 'ppl', 'fullbody', '5x5', 'funcional', 'powerbuilding'].includes(item.id)) {
       router.push(`/explore/routine-detail?id=${item.id}`);
     } else {
@@ -619,8 +647,17 @@ function ChallengeCard({ item, onPress }) {
 }
 
 function ExerciseOfDayCard({ data }) {
-  const imageSource = FEATURED_IMAGES[data?.image_id] || FEATURED_IMAGES['dominadas'];
+  const imageSource = featuredImageSource(data?.image_id, 'dominadas');
   const [muscle, difficulty] = (data?.subtitle || '').split(' · ');
+
+  const handleView = () => {
+    if (data?.route && data?.target_id) {
+      // ✅ Pasar el target_id real a la pantalla de detalle
+      router.push({ pathname: data.route, params: { id: data.target_id } });
+    } else {
+      Alert.alert('Ejercicio del día', 'Aún no hay un ejercicio asignado por el administrador');
+    }
+  };
 
   return (
     <View style={[s.card, s.exerciseCard]}>
@@ -632,10 +669,10 @@ function ExerciseOfDayCard({ data }) {
           {muscle && <View style={s.categoryPill}><Text style={s.categoryPillText}>{muscle}</Text></View>}
           {difficulty && <View style={s.categoryPill}><Text style={s.categoryPillText}>{difficulty}</Text></View>}
         </View>
-        <TouchableOpacity 
+                <TouchableOpacity 
           style={s.exerciseBtn} 
           activeOpacity={0.85} 
-          onPress={() => data?.route && router.push(data.route)}
+          onPress={handleView}
         >
           <Ionicons name="play-circle" size={16} color={BG} />
           <Text style={s.exerciseBtnText}>Ver ejecución</Text>

@@ -90,7 +90,17 @@ function RoutineCard({ routine, index }) {
     } else if (isHipertrofiaAvanzada) {
       router.push('/explore/hipertrofia-challenge');
     } else if (isHipertrofia30Dias) {
-      router.push('/explore/challenge-detail');
+      const challengeName = routine.name.replace(/^Reto:\s*/i, '').trim();
+      try {
+        const { data: challenge } = await supabase
+          .from('challenges')
+          .select('id')
+          .eq('name', challengeName)
+          .maybeSingle();
+        router.push(challenge ? `/explore/challenge-detail?id=${challenge.id}` : '/explore/challenge-detail');
+      } catch {
+        router.push('/explore/challenge-detail');
+      }
     } else if (isPPL) {
       router.push('/explore/routine-detail?id=ppl');
     } else if (isUpper) {
