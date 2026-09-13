@@ -27,7 +27,7 @@ export default function AuthScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         showAlert('Éxito', 'Sesión iniciada');
-        router.replace('/(tabs)');
+        router.replace('/home');
       } else {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;

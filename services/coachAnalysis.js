@@ -2,11 +2,6 @@
 import { supabase } from '../lib/supabase';
 import { toDayKey } from '../lib/dateUtils';
 
-const logger = {
-  debug: (...args) => console.log('[coachAnalysis]', ...args),
-  warn: (...args) => console.warn('[coachAnalysis]', ...args),
-};
-
 // ─── Utilidades de fecha ──────────────────────────────────────────────────────
 function todayISO() { return toDayKey(new Date()); }
 function daysAgoISO(n) {
@@ -43,6 +38,25 @@ export async function loadAllCoachData(userId) {
   const weekStart = startOfWeekISO();
   const lastWeekStart = startOfLastWeekISO();
 
+  let results;
+  try {
+    results = await Promise.all([
+    supabase.from('nutrition_goals').select('*').eq('user_id', userId).maybeSingle(),
+    supabase.from('nutrition_logs').select('*').eq('user_id', userId).eq('logged_date', today),
+    supabase.from('nutrition_logs').select('*').eq('user_id', userId).gte('logged_date', daysAgoISO(7)),
+    supabase.from('workout_sessions').select('*').eq('user_id', userId).gte('finished_at', `${today}T00:00:00`).lte('finished_at', `${today}T23:59:59`),
+    supabase.from('workout_sessions').select('*').eq('user_id', userId).gte('finished_at', `${weekStart}T00:00:00`),
+    supabase.from('workout_sessions').select('*').eq('user_id', userId).gte('finished_at', `${lastWeekStart}T00:00:00`).lt('finished_at', `${weekStart}T00:00:00`),
+    supabase.from('workout_sets').select('*, workout_sessions!inner(finished_at, user_id)').eq('workout_sessions.user_id', userId).gte('workout_sessions.finished_at', daysAgoISO(14)).order('finished_at', { ascending: false }).limit(200),
+    supabase.from('personal_records').select('*').eq('user_id', userId).order('achieved_at', { ascending: false }).limit(10),
+    supabase.from('weight_logs').select('*').eq('user_id', userId).order('logged_date', { ascending: false }).limit(60),
+    supabase.from('user_profiles').select('calorie_goal, protein_goal, weight_kg, height_cm').eq('id', userId).maybeSingle(),
+    ]);
+  } catch (err) {
+    console.error('[coachAnalysis] Error cargando datos:', err);
+    return null;
+  }
+
   const [
     goalsRes,
     todayNutritionRes,
@@ -54,18 +68,7 @@ export async function loadAllCoachData(userId) {
     recordsRes,
     weightRes,
     goalsCalRes,
-  ] = await Promise.all([
-    supabase.from('nutrition_goals').select('*').eq('user_id', userId).maybeSingle(),
-    supabase.from('nutrition_logs').select('*').eq('user_id', userId).eq('logged_date', today),
-    supabase.from('nutrition_logs').select('*').eq('user_id', userId).gte('logged_date', daysAgoISO(7)),
-    supabase.from('workout_sessions').select('*').eq('user_id', userId).gte('finished_at', `${today}T00:00:00`).lte('finished_at', `${today}T23:59:59`),
-    supabase.from('workout_sessions').select('*').eq('user_id', userId).gte('finished_at', `${weekStart}T00:00:00`),
-    supabase.from('workout_sessions').select('*').eq('user_id', userId).gte('finished_at', `${lastWeekStart}T00:00:00`).lt('finished_at', `${weekStart}T00:00:00`),
-    supabase.from('workout_sets').select('*, workout_sessions!inner(finished_at, user_id)').eq('workout_sessions.user_id', userId).gte('workout_sessions.finished_at', daysAgoISO(14)).order('finished_at', { ascending: false }).limit(200),
-    supabase.from('personal_records').select('*').eq('user_id', userId).order('achieved_at', { ascending: false }).limit(10),
-    supabase.from('weight_logs').select('*').eq('user_id', userId).order('logged_date', { ascending: false }).limit(60),
-    supabase.from('user_profiles').select('calorie_goal, protein_goal, weight_kg, height_cm').eq('id', userId).maybeSingle(),
-  ]);
+  ] = results;
 
   // 🔍 RESULTADOS (solo conteo, sin datos personales)
   return {

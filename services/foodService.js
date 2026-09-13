@@ -35,10 +35,6 @@ function setCachedResults(query, results) {
   searchCache.set(query, { results, timestamp: Date.now() });
 }
 
-export function clearFoodSearchCache() {
-  searchCache.clear(); //
-} //
-
 // ─── AbortController global para cancelar búsquedas previas ───────────────────
 let currentSearchController = null; //
 function cancelPreviousSearch() {
@@ -411,23 +407,6 @@ export async function searchFoods(query) {
 }
 
 // ─── Utilidades exportadas ────────────────────────────────────────────────────
-export async function getFoodById(foodId) {
-  if (!foodId) return null;
-
-  const { data, error } = await supabase
-    .from('foods')
-    .select('*')
-    .eq('food_id', foodId)
-    .maybeSingle();
-
-  if (error) {
-    logger.warn('getFoodById error', error);
-    return null;
-  }
-
-  return data ? mapDbRowToFood(data) : null;
-}
-
 export async function getFoodByBarcode(barcode) {
   if (!barcode) return null;
 

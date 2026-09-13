@@ -1,6 +1,6 @@
-// app/(tabs)/index.js
+// app/(tabs)/home.js
 import HomeScreen from '../../src/screens/homeScreen';
 
-export default function TabIndex() {
+export default function TabHome() {
   return <HomeScreen />;
 }

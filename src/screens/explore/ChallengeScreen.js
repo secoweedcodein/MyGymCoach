@@ -33,7 +33,7 @@ export default function ChallengeScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.list}>
         {CHALLENGES.map(item => (
-          <TouchableOpacity key={item.id} style={s.card} activeOpacity={0.85} onPress={() => router.push(`/explore/challenge/${item.id}`)}>
+          <TouchableOpacity key={item.id} style={s.card} activeOpacity={0.85} onPress={() => router.push(`/explore/challenge-detail?id=${item.id}`)}>
             <View style={s.cardHeader}>
               <View style={s.iconWrap}><Ionicons name="trophy" size={22} color={ACCENT} /></View>
               <View style={{ flex: 1 }}>

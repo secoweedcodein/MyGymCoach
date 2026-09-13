@@ -10,6 +10,7 @@ import {
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GOALS as GOAL_OPTIONS, ACTIVITY_LEVELS } from '../../lib/nutritionConstants';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -22,10 +23,15 @@ const T2 = '#A0A0A0';
 const T3 = '#555555';
 
 const GOALS = [
-  { id: 'ganar_musculo', label: 'Ganar músculo', icon: '💪', description: 'Hipertrofia y fuerza' },
-  { id: 'perder_peso', label: 'Perder peso', icon: '🔥', description: 'Quemar grasa' },
-  { id: 'mantenimiento', label: 'Mantenimiento', icon: '⚖️', description: 'Mantenerme en forma' },
+  { id: 'muscle_gain', label: GOAL_OPTIONS.muscle_gain.label, icon: '💪', description: GOAL_OPTIONS.muscle_gain.description },
+  { id: 'fat_loss',    label: GOAL_OPTIONS.fat_loss.label,    icon: '🔥', description: GOAL_OPTIONS.fat_loss.description },
+  { id: 'maintenance', label: GOAL_OPTIONS.maintenance.label,  icon: '⚖️', description: GOAL_OPTIONS.maintenance.description },
 ];
+
+const ACTIVITY_STEPS = Object.entries(ACTIVITY_LEVELS).map(([id, level]) => ({
+  id,
+  label: level.label,
+}));
 
 const DAYS_OPTIONS = [
   { id: '2', label: '2 días', icon: '📅' },
@@ -39,6 +45,7 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [selectedDays, setSelectedDays] = useState(null);
+  const [selectedActivity, setSelectedActivity] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -51,21 +58,24 @@ export default function OnboardingScreen() {
     }).start();
   }, [step]);
 
-  const handleNext = () => {
-    if (step === 1 && selectedGoal) {
+  const goToStep = (next) => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setStep(next);
       Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
+        toValue: 1,
+        duration: 300,
         useNativeDriver: true,
-      }).start(() => {
-        setStep(2);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
-    }
+      }).start();
+    });
+  };
+
+  const handleNext = () => {
+    if (step === 1 && selectedGoal) goToStep(2);
+    else if (step === 2 && selectedActivity) goToStep(3);
   };
 
   const handleFinish = async () => {
@@ -81,6 +91,8 @@ export default function OnboardingScreen() {
         .from('user_profiles')
         .update({
           goal: selectedGoal,
+          activity_level: selectedActivity,
+          activity_level_id: selectedActivity,
           days_per_week: Number.parseInt(selectedDays, 10),
         })
         .eq('id', user.id)
@@ -94,7 +106,7 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem('@mygymcoach_onboarding_completed', 'true');
 
       // Navegar al home
-      router.replace('/(tabs)');
+      router.replace('/home');
     } catch (error) {
       console.error('Error completing onboarding:', error);
       alert(`Error al guardar tu perfil: ${error.message || 'Intenta de nuevo.'}`);
@@ -107,7 +119,7 @@ export default function OnboardingScreen() {
     <SafeAreaView style={s.container}>
       {/* Progress Bar */}
       <View style={s.progressContainer}>
-        <View style={[s.progressBar, { width: step === 1 ? '50%' : '100%' }]} />
+        <View style={[s.progressBar, { width: step === 1 ? '33.333%' : step === 2 ? '66.666%' : '100%' }]} />
       </View>
 
       <Animated.View style={[s.content, { opacity: fadeAnim }]}>
@@ -147,12 +159,59 @@ export default function OnboardingScreen() {
               disabled={!selectedGoal}
               activeOpacity={0.8}
             >
-              <Text style={s.nextButtonText}>Continuar</Text>
-            </TouchableOpacity>
+<Text style={s.nextButtonText}>Continuar</Text>
+              </TouchableOpacity>
+            </>
+        ) : step === 2 ? (
+          <>
+            <Text style={s.title}>¿Cuál es tu nivel de actividad?</Text>
+            <Text style={s.subtitle}>
+              Lo usamos para ajustar tus calorías diarias
+            </Text>
+
+            <View style={s.optionsContainer}>
+              {ACTIVITY_STEPS.map((level) => (
+                <TouchableOpacity
+                  key={level.id}
+                  style={[
+                    s.optionCard,
+                    selectedActivity === level.id && s.optionCardSelected,
+                  ]}
+                  onPress={() => setSelectedActivity(level.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={s.optionText}>
+                    <Text style={s.optionLabel}>{level.label}</Text>
+                  </View>
+                  {selectedActivity === level.id && (
+                    <Text style={s.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={s.buttonRow}>
+              <TouchableOpacity
+                style={s.backButton}
+                onPress={() => goToStep(1)}
+                activeOpacity={0.8}
+              >
+                <Text style={s.backButtonText}>Atrás</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.nextButton, !selectedActivity && s.nextButtonDisabled]}
+                onPress={handleNext}
+                disabled={!selectedActivity}
+                activeOpacity={0.8}
+              >
+                <Text style={s.nextButtonText}>Continuar</Text>
+              </TouchableOpacity>
+            </View>
           </>
         ) : (
           <>
-            <Text style={s.title}>¿Cuántos días entrenarás?</Text>
+              <Text style={s.title}>¿Cuántos días entrenarás?</Text>
             <Text style={s.subtitle}>
               Sé realista, puedes cambiarlo después
             </Text>
@@ -176,7 +235,7 @@ export default function OnboardingScreen() {
             <View style={s.buttonRow}>
               <TouchableOpacity
                 style={s.backButton}
-                onPress={() => setStep(1)}
+                onPress={() => goToStep(2)}
                 activeOpacity={0.8}
               >
                 <Text style={s.backButtonText}>Atrás</Text>

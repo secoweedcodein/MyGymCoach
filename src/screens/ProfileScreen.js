@@ -11,6 +11,8 @@ import { useAlert } from "../context/AlertContext";
 import BottomTabBar from '../../components/BottomTabBar';
 import { exportWorkoutHistory } from '../../services/exportService';
 import { WeightChart } from '../../components/WeightChart';
+import { GOALS, ACTIVITY_LEVELS, resolveGoal, resolveActivityLevel, goalLabel } from '../../lib/nutritionConstants';
+import { calculateDailyNutrition, validateNutritionProfile } from '../../lib/nutritionCalculator';
 // ── Tokens de diseño ──────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -22,8 +24,6 @@ const T1       = '#FFFFFF';
 const T2       = '#A0A0A0';
 const T3       = '#555555';
 const RED      = '#FF453A';
-
-const GOALS = ['Ganar masa muscular', 'Perder grasa', 'Fuerza máxima', 'Resistencia', 'Mantenimiento'];
 
 // ── Utilidades ───────────────────────────────────────────────────────────────
 function getInitials(name) {
@@ -46,20 +46,6 @@ function daysAgoISO(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function calculateTDEE(profileData, activity) {
-  if (!profileData.weight_kg || !profileData.height_cm || !profileData.age) return null;
-  const bmr = 10 * profileData.weight_kg + 6.25 * profileData.height_cm - 5 * profileData.age + 5;
-  const multipliers = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 };
-  const tdee = Math.round(bmr * (multipliers[activity] || 1.2));
-  
-  return {
-    calories: tdee,
-    protein_g: Math.round(profileData.weight_kg * 2),
-    carbs_g: Math.round((tdee * 0.45) / 4),
-    fat_g: Math.round((tdee * 0.25) / 9),
-  };
 }
 
 // ── Calcular racha de días consecutivos ───────────────────────────────────────
@@ -125,7 +111,7 @@ export default function ProfileScreen() {
   const [editWeight, setEditWeight] = useState('');
   const [editHeight, setEditHeight] = useState('');
   const [editAge, setEditAge]       = useState('');
-  const [editGoal, setEditGoal]     = useState(GOALS[0]);
+  const [editGoal, setEditGoal]     = useState('muscle_gain');
   const [editActivity, setEditActivity] = useState('sedentary');
   const [saving, setSaving]         = useState(false);
 
@@ -167,8 +153,8 @@ export default function ProfileScreen() {
     setEditWeight(profile?.weight_kg ? String(profile.weight_kg) : '');
     setEditHeight(profile?.height_cm ? String(profile.height_cm) : '');
     setEditAge(profile?.birth_year ? String(new Date().getFullYear() - profile.birth_year) : '');
-    setEditGoal(profile?.goal ?? GOALS[0]);
-    setEditActivity(profile?.activity_level_id ?? 'sedentary');
+    setEditGoal(resolveGoal(profile?.goal, 'muscle_gain'));
+    setEditActivity(resolveActivityLevel(profile?.activity_level || profile?.activity_level_id, 'sedentary'));
     setShowModal(true);
   }
 
@@ -177,25 +163,52 @@ export default function ProfileScreen() {
       showAlert('Falta el nombre', 'Escribe tu nombre para continuar.');
       return;
     }
+
+    const weight = editWeight ? parseFloat(editWeight) : NaN;
+    const height = editHeight ? parseFloat(editHeight) : NaN;
+    const age = editAge ? parseInt(editAge, 10) : NaN;
+    const birthYear = Number.isFinite(age) ? new Date().getFullYear() - age : null;
+
+    const validationErrors = validateNutritionProfile({
+      weightKg: weight,
+      heightCm: height,
+      age,
+      goal: editGoal,
+      activityLevel: editActivity,
+    });
+    if (validationErrors.length) {
+      showAlert('Datos inválidos', validationErrors[0]);
+      return;
+    }
+
     setSaving(true);
 
-    const birthYear = editAge ? new Date().getFullYear() - parseInt(editAge) : null;
-    const profileData = {
-      weight_kg: editWeight ? parseFloat(editWeight) : null,
-      height_cm: editHeight ? parseFloat(editHeight) : null,
-      age: editAge ? parseInt(editAge) : null,
-    };
-
-    // 1. Guardar perfil
-    const { error: profileError } = await supabase.from('user_profiles').upsert({
-      id: userId,
-      full_name: editName.trim(),
-      weight_kg: profileData.weight_kg,
-      height_cm: profileData.height_cm,
+    const plan = calculateDailyNutrition({
+      weight_kg: weight,
+      height_cm: height,
       birth_year: birthYear,
       goal: editGoal,
-      activity_level_id: editActivity,
+      activity_level: editActivity,
     });
+
+    // 1. Guardar perfil
+    const profilePayload = {
+      id: userId,
+      full_name: editName.trim(),
+      weight_kg: weight,
+      height_cm: height,
+      birth_year: birthYear,
+      goal: editGoal,
+      activity_level: editActivity,
+      activity_level_id: editActivity,
+    };
+    if (plan) {
+      // Coach IA lee calorie_goal/protein_goal desde user_profiles.
+      profilePayload.calorie_goal = plan.calories;
+      profilePayload.protein_goal = plan.protein_g;
+    }
+
+    const { error: profileError } = await supabase.from('user_profiles').upsert(profilePayload);
 
     if (profileError) {
       setSaving(false);
@@ -204,24 +217,24 @@ export default function ProfileScreen() {
     }
 
     // 2. Sincronización con Coach IA: Guardar en el historial de peso
-    if (profileData.weight_kg) {
+    if (Number.isFinite(weight)) {
       const today = daysAgoISO(0);
       await supabase.from('weight_logs').upsert({
         user_id: userId,
-        weight_kg: profileData.weight_kg,
+        weight_kg: weight,
         logged_date: today,
       }, { onConflict: 'user_id,logged_date' });
     }
 
     // 3. Actualizar metas nutricionales
-    const tdee = calculateTDEE(profileData, editActivity);
-    if (tdee) {
+    if (plan) {
       await supabase.from('nutrition_goals').upsert({
         user_id: userId,
-        calories: tdee.calories,
-        protein_g: tdee.protein_g,
-        carbs_g: tdee.carbs_g,
-        fat_g: tdee.fat_g,
+        calories: plan.calories,
+        protein_g: plan.protein_g,
+        carbs_g: plan.carbs_g,
+        fat_g: plan.fat_g,
+        goal: editGoal,
         activity_level: editActivity,
       });
     }
@@ -240,7 +253,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await supabase.auth.signOut();
-          router.replace('/');
+          router.replace('/home');
         },
       },
     ]);
@@ -261,6 +274,16 @@ export default function ProfileScreen() {
     ? new Date(profile.created_at).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
     : 'Reciente';
 
+  // Vista previa de metas mientras se edita el perfil.
+  const nutritionPreview = (() => {
+    const w = parseFloat(editWeight);
+    const h = parseFloat(editHeight);
+    const a = editAge ? parseInt(editAge, 10) : NaN;
+    const errors = validateNutritionProfile({ weightKg: w, heightCm: h, age: a, goal: editGoal, activityLevel: editActivity });
+    if (errors.length) return null;
+    return calculateDailyNutrition({ weight_kg: w, height_cm: h, birth_year: new Date().getFullYear() - a, goal: editGoal, activity_level: editActivity });
+  })();
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <ScrollView style={p.container} showsVerticalScrollIndicator={false}>
@@ -272,7 +295,7 @@ export default function ProfileScreen() {
           </View>
           <View style={p.userInfo}>
             <Text style={p.userName}>{displayName}</Text>
-            <Text style={p.userMeta}>{age} años · {profile?.goal || 'Atleta'}</Text>
+            <Text style={p.userMeta}>{age} años · {goalLabel(profile?.goal) || 'Atleta'}</Text>
             <Text style={p.memberSince}>Miembro desde {memberSince}</Text>
           </View>
           <TouchableOpacity style={p.editBtn} onPress={openModal} activeOpacity={0.7}>
@@ -361,12 +384,31 @@ export default function ProfileScreen() {
 
             <Text style={m.label}>Objetivo</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={m.chipScroll}>
-              {GOALS.map(g => (
-                <TouchableOpacity key={g} style={[m.chip, editGoal === g && m.chipActive]} onPress={() => setEditGoal(g)}>
-                  <Text style={[m.chipText, editGoal === g && m.chipTextActive]}>{g}</Text>
+              {Object.entries(GOALS).map(([key, goal]) => (
+                <TouchableOpacity key={key} style={[m.chip, editGoal === key && m.chipActive]} onPress={() => setEditGoal(key)}>
+                  <Text style={[m.chipText, editGoal === key && m.chipTextActive]}>{goal.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
+
+            <Text style={m.label}>Actividad diaria</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={m.chipScroll}>
+              {Object.entries(ACTIVITY_LEVELS).map(([key, activity]) => (
+                <TouchableOpacity key={key} style={[m.chip, editActivity === key && m.chipActive]} onPress={() => setEditActivity(key)}>
+                  <Text style={[m.chipText, editActivity === key && m.chipTextActive]}>{activity.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {nutritionPreview && (
+              <View style={m.macroPreview}>
+                <Text style={m.macroTitle}>Metas calculadas</Text>
+                <Text style={m.macroLine}>
+                  {nutritionPreview.calories} kcal · P {nutritionPreview.protein_g}g ·
+                  C {nutritionPreview.carbs_g}g · G {nutritionPreview.fat_g}g
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity style={[m.saveBtn, saving && { opacity: 0.6 }]} onPress={saveProfile} disabled={saving} activeOpacity={0.8}>
               {saving ? <ActivityIndicator color={BG} /> : <Text style={m.saveBtnText}>Guardar Cambios</Text>}
@@ -506,6 +548,9 @@ const m = StyleSheet.create({
   chipActive: { backgroundColor: ACCENT + '20', borderColor: ACCENT },
   chipText: { fontSize: 12, color: T2, fontWeight: '600' },
   chipTextActive: { color: ACCENT, fontWeight: '700' },
+  macroPreview: { backgroundColor: SURFACE2, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: ACCENT + '30', marginBottom: 16 },
+  macroTitle: { fontSize: 11, fontWeight: '700', color: T2, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  macroLine: { fontSize: 14, fontWeight: '800', color: ACCENT },
   saveBtn: { backgroundColor: ACCENT, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
   saveBtnText: { fontSize: 15, fontWeight: '800', color: BG },
   cancelBtn: { alignItems: 'center', padding: 12 },

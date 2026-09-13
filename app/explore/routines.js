@@ -3,13 +3,14 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'rea
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from '../../components/BottomTabBar';
+import { colors as c } from '../../lib/theme';
 
-const BG = '#0D0D0D';
-const SURFACE = '#161616';
-const BORDER = '#FFFFFF0D';
-const T1 = '#FFFFFF';
-const T2 = '#A0A0A0';
-const ACCENT = '#C0FF3E';
+const BG = c.bg;
+const SURFACE = c.bg2;
+const BORDER = c.border;
+const T1 = c.t1;
+const T2 = c.t2;
+const ACCENT = c.accent;
 
 const ALL_ROUTINES = [
   { id: 'upper', image: require('../../assets/upper.png'), title: 'Hipertrofia Upper', level: 'Intermedio' },

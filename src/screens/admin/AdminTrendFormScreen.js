@@ -634,7 +634,7 @@ async function loadTrend() {
           </View>
         </TouchableOpacity>
 {/* MOSTRAR EN VER TODO */}
-<Text style={s.sectionLabel}>VISIBILIDAD EN "VER TODO"</Text>
+<Text style={s.sectionLabel}>{'VISIBILIDAD EN "VER TODO"'}</Text>
 <TouchableOpacity
   style={[s.toggleCard, form.show_in_see_all && s.toggleCardActive]}
   onPress={() => updateField('show_in_see_all', !form.show_in_see_all)}

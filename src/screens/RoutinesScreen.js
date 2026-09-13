@@ -282,7 +282,7 @@ const { showAlert } = useAlert();
 
               {filtered.length === 0 && (
                 <View style={s.emptySearch}>
-                  <Text style={s.emptySearchText}>Sin resultados para "{search}"</Text>
+                  <Text style={s.emptySearchText}>{`Sin resultados para "${search}"`}</Text>
                   <TouchableOpacity onPress={() => setShowModal(true)} style={s.emptySearchBtn}>
                     <Text style={s.emptySearchBtnText}>Crear este ejercicio →</Text>
                   </TouchableOpacity>

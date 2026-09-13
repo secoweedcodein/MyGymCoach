@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { getUserStreak } from '../../services/streakService';
 import { colors, radius, spacing, type, shadow } from '../../lib/theme';
+import { ErrorState } from '../../components/DataState';
 
 const width = Dimensions.get('window').width - spacing.md * 2;
 
@@ -29,6 +30,7 @@ export default function DashboardScreen() {
   const [stats, setStats] = useState({ workouts: 0, sets: 0, volume: 0 });
   const [trend, setTrend] = useState({ workouts: 0, volume: 0 });
   const [streak, setStreak] = useState(0);
+  const [error, setError] = useState(null);
 
   const [chartData, setChartData] = useState({
     labels: [],
@@ -59,6 +61,8 @@ export default function DashboardScreen() {
 
   async function loadStats() {
     setLoading(true);
+    setError(null);
+    try {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -70,7 +74,7 @@ export default function DashboardScreen() {
     const current = rangeFor(period, 0);
     const previous = rangeFor(period, 1);
 
-    const [{ data: currentData }, { data: previousData }] =
+    const [{ data: currentData, error: currentError }, { data: previousData, error: previousError }] =
       await Promise.all([
         supabase
           .from('workout_sessions')
@@ -86,6 +90,11 @@ export default function DashboardScreen() {
           .gte('finished_at', previous.start.toISOString())
           .lte('finished_at', previous.end.toISOString()),
       ]);
+
+    if (currentError || previousError) {
+      console.error('Error cargando stats:', currentError || previousError);
+      throw currentError || previousError;
+    }
 
     const { currentStreak } = await getUserStreak(user.id);
 
@@ -118,7 +127,20 @@ export default function DashboardScreen() {
       datasets: [{ data: recent.map((s) => s.total_volume_kg || 0) }],
     });
 
-    setLoading(false);
+    } catch (err) {
+      console.error('Error cargando dashboard:', err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <ErrorState message="No se pudieron cargar tus estadísticas." onRetry={loadStats} />
+      </View>
+    );
   }
 
   return (

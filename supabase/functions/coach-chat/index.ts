@@ -45,24 +45,22 @@ serve(async (req) => {
       throw new Error('Datos inválidos: se requiere un array de messages')
     }
 
-    // 4. Verificar límite de uso (OPCIONAL: Si la tabla no existe, no falla el chat)
-    let usageCount = 0
+    // 4. Verificar límite de uso (OPCIONAL: Si el RPC no existe, no falla el chat)
+    //    La validación atómica final la hace increment_ai_usage (RPC SECURITY DEFINER).
+    const DAILY_LIMIT = 20
     try {
-      const today = new Date().toISOString().split('T')[0]
-      const { data: usage } = await supabase
-        .from('ai_usage')
-        .select('messages_count')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .maybeSingle()
-
-      if (usage && usage.messages_count >= 20) {
-        throw new Error('Has alcanzado el límite de 20 mensajes por día. Vuelve mañana.')
+      const { data: usageCount, error: usageError } = await supabase.rpc('get_ai_usage')
+      if (!usageError && (usageCount ?? 0) >= DAILY_LIMIT) {
+        throw new Error(`Has alcanzado el límite de ${DAILY_LIMIT} mensajes por día. Vuelve mañana.`)
       }
-      usageCount = usage?.messages_count || 0
     } catch (limitError) {
-      console.warn('⚠️ No se pudo verificar el límite de uso (¿existe la tabla ai_usage?):', limitError.message)
-      // Continuamos, no bloqueamos el chat por esto
+      // Solo re-lanzamos si es el error de límite; si el RPC no está disponible,
+      // continuamos para no bloquear el chat.
+      const msg = limitError.message || ''
+      if (msg.includes('límite')) {
+        throw limitError
+      }
+      console.warn('⚠️ No se pudo verificar el límite de uso (¿existe get_ai_usage?):', msg)
     }
 
     // 5. Prompt del sistema premium
@@ -102,16 +100,14 @@ ${userContext || 'No se proporcionó contexto adicional.'}
     const openaiData = await openaiResponse.json()
     const reply = openaiData.choices[0]?.message?.content || 'No pude procesar tu mensaje.'
 
-    // 7. Incrementar contador (OPCIONAL: Si falla, no rompe el chat)
+    // 7. Incrementar contador de uso de forma atómica vía RPC (OPCIONAL: no rompe el chat)
     try {
-      const today = new Date().toISOString().split('T')[0]
-      await supabase.from('ai_usage').upsert({
-        user_id: userId,
-        date: today,
-        messages_count: usageCount + 1,
-      }, { onConflict: 'user_id,date' })
-    } catch (upsertError) {
-      console.warn('⚠️ No se pudo guardar el contador de uso:', upsertError.message)
+      const { error: incError } = await supabase.rpc('increment_ai_usage', { p_limit: DAILY_LIMIT })
+      if (incError) {
+        console.warn('⚠️ No se pudo incrementar el contador de uso:', incError.message)
+      }
+    } catch (incrementError) {
+      console.warn('⚠️ No se pudo incrementar el contador de uso:', incrementError.message)
     }
 
     // 8. Respuesta exitosa

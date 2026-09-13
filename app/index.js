@@ -31,7 +31,7 @@ export default function Index() {
       if (session?.user) {
         // Si inicia sesión, verificamos si ya hizo el onboarding
         const onboardingCompleted = await AsyncStorage.getItem('@mygymcoach_onboarding_completed');
-        setInitialRoute(onboardingCompleted ? '/(tabs)' : '/onboarding');
+        setInitialRoute(onboardingCompleted ? '/home' : '/onboarding');
       } else {
         setInitialRoute('/auth');
       }
@@ -55,7 +55,7 @@ export default function Index() {
       if (!onboardingCompleted) {
         setInitialRoute('/onboarding');
       } else {
-        setInitialRoute('/(tabs)');
+        setInitialRoute('/home');
       }
     } catch (error) {
       console.error('Error checking user:', error);

@@ -123,14 +123,16 @@ export default function ExploreScreen() {
     exercise: { title: 'Dominadas lastradas', subtitle: 'Espalda y bíceps', image_id: 'dominadas', route: '/explore/exercise-day' },
   });
   const [userRecipes, setUserRecipes] = useState([]);
+  const [error, setError] = useState(null);
 
   async function loadArticles() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('articles')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(3);
 
+    if (error) throw error;
     if (data) {
       setArticles(data.map(a => ({
         id: a.id,
@@ -143,7 +145,8 @@ export default function ExploreScreen() {
   }
 
   async function loadFeatured() {
-    const { data } = await supabase.from('featured_content').select('*');
+    const { data, error } = await supabase.from('featured_content').select('*');
+    if (error) throw error;
     if (!data) return;
     
     // ✅ CAMBIO: Usar los nuevos IDs que definimos en el admin
@@ -157,23 +160,25 @@ export default function ExploreScreen() {
   }
 
   async function loadTrends() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('trends')
       .select('*')
       .eq('is_active', true)
       .order('position', { ascending: true });
+    if (error) throw error;
     if (data) setTrends(data);
   }
 
   // Cargar las últimas 2 recetas de usuario desde Supabase
   async function loadUserRecipes() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('user_recipes')
       .select('*')
       .eq('status', 'approved')
       .order('created_at', { ascending: false })
       .limit(2);
 
+    if (error) throw error;
     if (data) {
       setUserRecipes(data.map(r => ({
         id: r.id,
@@ -187,13 +192,20 @@ export default function ExploreScreen() {
     }
   }
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadArticles(), loadTrends(), loadUserRecipes(), loadFeatured()]);
-    setLoading(false);
-  };
+    setError(null);
+    try {
+      await Promise.all([loadArticles(), loadTrends(), loadUserRecipes(), loadFeatured()]);
+    } catch (err) {
+      console.error('[Explore] Error al cargar secciones:', err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, [refresh]);
 
   const handleSectionLayout = useCallback((id) => (e) => {
     sectionY.current[id] = e.nativeEvent.layout.y;
@@ -229,6 +241,16 @@ export default function ExploreScreen() {
         scrollEventThrottle={16}
       >
         <FadeInUp delay={0}><HeroCard data={featured.hero} /></FadeInUp>
+
+        {error && !loading && (
+          <View style={s.errorBanner}>
+            <Ionicons name="cloud-offline-outline" size={16} color={T2} />
+            <Text style={s.errorBannerText}>No se pudieron cargar algunas secciones.</Text>
+            <TouchableOpacity onPress={refresh} activeOpacity={0.8}>
+              <Text style={s.errorBannerBtn}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View onLayout={handleSectionLayout('trends')}>
   <FadeInUp delay={60}>
@@ -309,7 +331,7 @@ export default function ExploreScreen() {
               {loading ? <SkeletonChallenge /> : (
                 <View style={{ paddingHorizontal: 20, gap: 12 }}>
                   {CHALLENGES.map((c) => (
-                    <ChallengeCard key={c.id} item={c} onPress={() => router.push(`/explore/challenge/${c.id}`)} />
+                    <ChallengeCard key={c.id} item={c} onPress={() => router.push(`/explore/challenge-detail?id=${c.id}`)} />
                   ))}
                 </View>
               )}
@@ -815,6 +837,9 @@ const s = StyleSheet.create({
   exerciseBtnText: { fontSize: 13, fontWeight: '800', color: BG },
   skeletonCard: { height: 176, backgroundColor: SURFACE2 },
   emptyState: { marginHorizontal: 20, backgroundColor: SURFACE, borderRadius: 18, borderWidth: 1, borderColor: BORDER, borderStyle: 'dashed', paddingVertical: 32, alignItems: 'center', gap: 6 },
+  errorBanner: { marginHorizontal: 20, marginBottom: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: SURFACE, borderRadius: 14, borderWidth: 1, borderColor: ORANGE + '33', paddingHorizontal: 14, paddingVertical: 12 },
+  errorBannerText: { flex: 1, fontSize: 12, color: T2, fontWeight: '600' },
+  errorBannerBtn: { fontSize: 12, fontWeight: '800', color: ACCENT },
   emptyTitle: { fontSize: 14, fontWeight: '700', color: T1, marginTop: 4 },
   emptyText: { fontSize: 12, color: T2, textAlign: 'center' },
   emptyBtn: { marginTop: 10, backgroundColor: ACCENT, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 18 },

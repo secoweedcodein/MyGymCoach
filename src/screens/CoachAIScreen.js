@@ -93,6 +93,9 @@ const getAdaptiveSuggestions = async () => {
     return (
       <View style={s.loading}>
         <Text style={s.loadingText}>No se pudieron cargar los datos</Text>
+        <TouchableOpacity style={s.retryBtn} onPress={loadAnalysis} activeOpacity={0.8}>
+          <Text style={s.retryBtnText}>Reintentar</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -106,7 +109,7 @@ const getAdaptiveSuggestions = async () => {
       >
         {/* Header */}
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.replace('/')} style={s.backBtn}>
+          <TouchableOpacity onPress={() => router.replace('/home')} style={s.backBtn}>
   <Text style={s.backBtnText}>←</Text>
 </TouchableOpacity>
           <View style={{ flex: 1 }}>
@@ -122,7 +125,7 @@ const getAdaptiveSuggestions = async () => {
         <View style={s.quoteCard}>
           <View style={s.quoteGlow} />
           <Text style={s.quoteIcon}>💡</Text>
-          <Text style={s.quoteText}>"{analysis.quote}"</Text>
+          <Text style={s.quoteText}>{'\u201C'}{analysis.quote}{'\u201D'}</Text>
         </View>
 
         {/* SECCIÓN 1: Resumen del día */}
@@ -501,6 +504,18 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   loading: { flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: T3, marginTop: 12, fontSize: 13 },
+  retryBtn: {
+    marginTop: 16,
+    backgroundColor: ACCENT,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+  },
+  retryBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#000',
+  },
   scroll: { paddingBottom: 40 },
 
   header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 },

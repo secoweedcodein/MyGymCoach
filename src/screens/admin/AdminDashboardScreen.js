@@ -86,7 +86,7 @@ export default function AdminDashboardScreen() {
       '¿Estás seguro que quieres salir?',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Salir', style: 'destructive', onPress: () => router.replace('/') },
+        { text: 'Salir', style: 'destructive', onPress: () => router.replace('/home') },
       ]
     );
   }

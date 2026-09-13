@@ -1,5 +1,5 @@
 // src/screens/explore/AllRecipesScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, Dimensions, TextInput,
@@ -7,6 +7,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { supabase } from '../../../lib/supabase';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -51,26 +52,33 @@ useEffect(() => {
 }, []);
 
 async function loadRecipes() {
-  const { data } = await supabase
-    .from('recipes_ia')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (data) {
-    setRecipes(data.map(r => ({
-      id: r.id,
-      image: require('../../../assets/pancakes.png'),
-      name: r.name,
-      category: r.category,
-      protein: r.protein,
-      calories: r.calories,
-      time: r.time,
-      tag: r.tags?.[0] || r.category,
-      tagColor: '#C0FF3E',
-    })));
+  try {
+    const { data, error } = await supabase
+      .from('recipes_ia')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    if (data) {
+      setRecipes(data.map(r => ({
+        id: r.id,
+        image: require('../../../assets/pancakes.png'),
+        name: r.name,
+        category: r.category,
+        protein: r.protein,
+        calories: r.calories,
+        time: r.time,
+        tag: r.tags?.[0] || r.category,
+        tagColor: '#C0FF3E',
+      })));
+    }
+  } catch (err) {
+    console.error('[AllRecipes] Error cargando recetas:', err);
+  } finally {
+    setLoading(false);
   }
-  setLoading(false);
 }
-  const filteredRecipes = ALL_RECIPES.filter(r => {
+  const recipeSource = recipes.length > 0 ? recipes : ALL_RECIPES;
+  const filteredRecipes = recipeSource.filter(r => {
     const matchCategory = activeCategory === 'Todas' || r.category === activeCategory;
     const matchSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCategory && matchSearch;

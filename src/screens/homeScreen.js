@@ -200,6 +200,7 @@ export default function HomeScreen() {
   const [todayCalories, setTodayCalories] = useState(0);
   const [tapCount, setTapCount] = useState(0);
   const [streak, setStreak] = useState({ currentStreak: 0, longestStreak: 0 });
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     if (tapCount >= 5) {
@@ -212,10 +213,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const loadStreak = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const data = await getUserStreak(user.id);
-      setStreak(data);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const data = await getUserStreak(user.id);
+        setStreak(data);
+      } catch (err) {
+        console.error('Error cargando racha:', err);
+      }
     };
 
     loadStreak();
@@ -229,6 +234,8 @@ export default function HomeScreen() {
 
   async function loadData() {
     setRefreshing(true);
+    setLoadError(null);
+    try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setRefreshing(false);
@@ -243,11 +250,8 @@ export default function HomeScreen() {
 
     if (error) {
       console.error("Error cargando rutinas:", error);
-      setRefreshing(false);
-      return;
-    }
-
-    if (rData) {
+      setLoadError(error);
+    } else if (rData) {
       const today = new Date();
       const expiredIds = [];
       const activeRoutines = rData.filter(r => {
@@ -272,14 +276,18 @@ export default function HomeScreen() {
     }
 
     const todayLogDate = todayKey();
-    const { data: nutData } = await supabase
+    const { data: nutData, error: nutError } = await supabase
       .from('nutrition_logs')
       .select('calories')
       .eq('user_id', user.id)
       .eq('logged_date', todayLogDate);
-    
-    const todayCal = (nutData || []).reduce((a, r) => a + (r.calories || 0), 0);
-    setTodayCalories(Math.round(todayCal));
+
+    if (nutError) {
+      console.error("Error cargando nutrición del día:", nutError);
+    } else {
+      const todayCal = (nutData || []).reduce((a, r) => a + (r.calories || 0), 0);
+      setTodayCalories(Math.round(todayCal));
+    }
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -300,7 +308,12 @@ export default function HomeScreen() {
     } else {
       setStats({ workouts: 0, sets: 0, volume: 0 });
     }
-    setRefreshing(false);
+    } catch (err) {
+      console.error('Error cargando datos del home:', err);
+      setLoadError(err);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function handleSignOut() {
@@ -333,6 +346,12 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {loadError && (
+          <View style={s.errorBanner}>
+            <Text style={s.errorBannerText}>No se pudieron cargar tus datos. Tira hacia abajo para reintentar.</Text>
+          </View>
+        )}
 
         <View style={s.hero}>
           <View style={s.heroGlow} />
@@ -461,6 +480,8 @@ const s = StyleSheet.create({
   chipText: { fontSize: 11, color: T2, fontWeight: '600' },
   chipMore: { borderColor: '#FFFFFF18' },
   chipMoreText: { color: T3 },
+  errorBanner: { marginHorizontal: 20, marginTop: 16, backgroundColor: SURFACE, borderRadius: 14, borderWidth: 1, borderColor: '#FF5A5F33', paddingHorizontal: 14, paddingVertical: 12 },
+  errorBannerText: { fontSize: 12, color: T2, fontWeight: '600', lineHeight: 17 },
   emptyCard: { marginHorizontal: 20, backgroundColor: SURFACE, borderRadius: 20, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: BORDER, borderStyle: 'dashed' },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: T1, marginBottom: 6 },

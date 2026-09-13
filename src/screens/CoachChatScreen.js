@@ -35,12 +35,15 @@ export default function CoachChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [userContext, setUserContext] = useState('');
+  const [loadError, setLoadError] = useState(null);
   const flatListRef = useRef(null);
 
   // Cargar contexto del usuario y mensajes al montar
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setLoadError(null);
+      try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
@@ -54,17 +57,24 @@ export default function CoachChatScreen() {
       }
 
       // Load history
-      const { data: history } = await supabase
+      const { data: history, error } = await supabase
         .from('chat_messages')
         .select('role, content')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true })
         .limit(50);
 
+      if (error) throw error;
+
       if (history && history.length > 0) {
         setMessages(history);
       }
-      setLoading(false);
+      } catch (err) {
+        console.error('[CoachChat] Error cargando contexto:', err);
+        setLoadError(err);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -144,6 +154,12 @@ export default function CoachChatScreen() {
       </View>
 
       {/* Mensajes */}
+      {loadError && (
+        <View style={c.errorBanner}>
+          <Text style={c.errorBannerText}>No se pudo cargar tu historial de chat.</Text>
+        </View>
+      )}
+
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -223,6 +239,8 @@ const c = StyleSheet.create({
   aiBadgeText: { fontSize: 20 },
 
   listContent: { padding: 16, paddingBottom: 8 },
+  errorBanner: { marginHorizontal: 16, marginTop: 8, backgroundColor: SURFACE, borderRadius: 12, borderWidth: 1, borderColor: BORDER2, paddingHorizontal: 12, paddingVertical: 10 },
+  errorBannerText: { fontSize: 12, color: T2, fontWeight: '600' },
   msgRow: { flexDirection: 'row', marginBottom: 14, gap: 8, alignItems: 'flex-end' },
   msgRowUser: { justifyContent: 'flex-end' },
   avatar: { fontSize: 22, marginBottom: 4 },

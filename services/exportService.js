@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import * as FileSystem from 'expo-file-system';
+import { documentDirectory, writeAsStringAsync } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { todayKey } from '../lib/dateUtils';
 
@@ -33,8 +33,8 @@ export const exportWorkoutHistory = async (userId, format = 'json') => {
       fileName += '.csv';
     }
 
-    const fileUri = FileSystem.documentDirectory + fileName;
-    await FileSystem.writeAsStringAsync(fileUri, content);
+    const fileUri = documentDirectory + fileName;
+    await writeAsStringAsync(fileUri, content);
 
     await Sharing.shareAsync(fileUri);
     return { success: true };

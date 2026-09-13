@@ -6,7 +6,6 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase.js';
 import { getExercise, getAllExercises } from './data/exercises.js';
-import { colors, radius, spacing } from '../../lib/theme.js';
 import { router, useLocalSearchParams } from 'expo-router';
 import ExerciseIcon from '../../components/ExerciseIcon.js';
 import RecordToast from '../../components/RecordToast.js';
