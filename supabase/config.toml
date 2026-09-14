@@ -434,3 +434,10 @@ verify_jwt = true
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/coach-analysis/index.ts"
+
+[functions.generate-recipe]
+enabled = true
+verify_jwt = true
+# Genera recetas IA estructuradas (esquema JSON) y las persiste el admin en recipes_ia.
+# Exige JWT: el userId sale del token, nunca del cuerpo.
+entrypoint = "./functions/generate-recipe/index.ts"

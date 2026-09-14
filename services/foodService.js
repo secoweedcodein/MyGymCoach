@@ -138,7 +138,7 @@ export async function searchLocalFoods(query, signal) {
 
   const { data, error } = await supabase
     .from('foods')
-    .select('*')
+    .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g')
     .ilike('search_name', `%${text}%`)
     .order('usage_count', { ascending: false })
     .order('name', { ascending: true })
@@ -412,7 +412,7 @@ export async function getFoodByBarcode(barcode) {
 
   const { data, error } = await supabase
     .from('foods')
-    .select('*')
+    .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g')
     .eq('barcode', barcode)
     .maybeSingle();
 
@@ -515,7 +515,7 @@ export async function findSimilarFoods(name, brand) {
   // Buscar por nombre similar
   const { data, error } = await supabase
     .from('foods')
-    .select('*')
+    .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g')
     .ilike('search_name', `%${text}%`)
     .limit(5);
 
@@ -658,7 +658,7 @@ export async function getFoodByBarcodeHybrid(barcode) {
     const { data: saved } = await supabase
       .from('foods')
       .upsert(payload, { onConflict: 'barcode' })
-      .select()
+      .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g')
       .maybeSingle();
 
     return saved ? mapDbRowToFood(saved) : food;

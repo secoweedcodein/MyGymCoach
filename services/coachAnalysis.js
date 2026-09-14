@@ -24,11 +24,6 @@ function startOfLastWeekISO() {
 }
 
 // ─── Carga maestra de datos ───────────────────────────────────────────────────
-/**
- * Carga todos los datos necesarios para el análisis en paralelo.
- * Una sola llamada, múltiples queries.
- */
-// ─── Carga maestra de datos con DIAGNÓSTICO ───────────────────────────────────
 export async function loadAllCoachData(userId) {
   if (!userId) {
     return null;
@@ -50,7 +45,7 @@ export async function loadAllCoachData(userId) {
     supabase.from('workout_sets').select('*, workout_sessions!inner(finished_at, user_id)').eq('workout_sessions.user_id', userId).gte('workout_sessions.finished_at', daysAgoISO(14)).order('finished_at', { ascending: false }).limit(200),
     supabase.from('personal_records').select('*').eq('user_id', userId).order('achieved_at', { ascending: false }).limit(10),
     supabase.from('weight_logs').select('*').eq('user_id', userId).order('logged_date', { ascending: false }).limit(60),
-    supabase.from('user_profiles').select('calorie_goal, protein_goal, weight_kg, height_cm').eq('id', userId).maybeSingle(),
+    supabase.from('user_profiles').select('full_name, goal, calorie_goal, protein_goal, weight_kg, height_cm, activity_level').eq('id', userId).maybeSingle(),
     ]);
   } catch (err) {
     console.error('[coachAnalysis] Error cargando datos:', err);
@@ -85,9 +80,8 @@ export async function loadAllCoachData(userId) {
   };
 }
 
-// ─── SECCIÓN 1: Resumen del día ───────────────────────────────────────────────
-// ─── SECCIÓN 1: Resumen del día ───────────────────────────────────────────────
-export function analyzeDailySummary(data) {
+// ─── Sección 1: Resumen del día ──────────────────────────────────────────────
+  export function analyzeDailySummary(data) {
   const { goals, todayNutrition, todayWorkout } = data;
   
   const caloriesConsumed = todayNutrition.reduce((a, l) => a + (l.calories || 0), 0);
@@ -309,7 +303,6 @@ export function analyzePhysicalProgress(data) {
 }
 
 // ─── SECCIÓN 5: Récords ───────────────────────────────────────────────────────
-// ─── SECCIÓN 5: Récords ───────────────────────────────────────────────────────
 export function analyzeRecords(data) {
   const { records } = data || {};
   
@@ -492,8 +485,6 @@ export async function runFullAnalysis(userId) {
 }
 
 // ─── Contexto para el chat IA ─────────────────────────────────────────────────
-// ─── Contexto para el chat IA ─────────────────────────────────────────────────
-// ─── Contexto para el chat IA (Versión Premium) ───────────────────────────────
 export function buildUserContextForChat(analysis) {
   if (!analysis) return "No hay datos de análisis disponibles.";
   

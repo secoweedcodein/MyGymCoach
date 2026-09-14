@@ -126,8 +126,8 @@ export default function ProfileScreen() {
     const [profileRes, statsRes, weekNutritionRes, goalsRes] = await Promise.all([
       supabase.from('user_profiles').select('*').eq('id', user.id).maybeSingle(),
       supabase.from('workout_sessions').select('total_sets, total_volume_kg').eq('user_id', user.id).not('finished_at', 'is', null),
-      supabase.from('nutrition_logs').select('*').eq('user_id', user.id).gte('logged_date', daysAgoISO(7)),
-      supabase.from('nutrition_goals').select('*').eq('user_id', user.id).maybeSingle(),
+      supabase.from('nutrition_logs').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).gte('logged_date', daysAgoISO(7)),
+      supabase.from('nutrition_goals').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).maybeSingle(),
     ]);
 
     if (profileRes.data) setProfile(profileRes.data);

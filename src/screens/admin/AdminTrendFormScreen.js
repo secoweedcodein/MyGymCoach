@@ -333,13 +333,13 @@ async function loadTrend() {
       Alert.alert('Error', 'Todos los macros son obligatorios'); return null;
     }
     const { data, error } = await supabase.from('recipes_ia').insert({
-      name: form.title.trim(), subtitle: '', category: 'Almuerzo', difficulty: 'Fácil',
-      time: recipeData.time || '15 min', servings: 1, description: '',
+      name: form.title.trim(), subtitle: '', category: 'Almuerzo',
+      time: recipeData.time || '15 min',
       calories: parseInt(recipeData.calories), protein: parseInt(recipeData.protein),
-      carbs: parseInt(recipeData.carbs), fat: parseInt(recipeData.fat),
+      carbs_g: parseInt(recipeData.carbs), fat_g: parseInt(recipeData.fat),
       tags: [],
       ingredients: recipeData.ingredients.split(',').map(i => ({ name: i.trim(), amount: '' })).filter(i => i.name),
-      steps: recipeData.steps.split('\n').filter(s => s.trim()), tips: '',
+      instructions: recipeData.steps.split('\n').filter(s => s.trim()),
     }).select().single();
     if (error) { Alert.alert('Error', error.message); return null; }
     return `/explore/recipe-detail?id=${data.id}`;

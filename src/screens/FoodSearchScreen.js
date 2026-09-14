@@ -71,7 +71,7 @@ export default function FoodSearchScreen() {
       // Cargar recientes
       const { data: recent } = await supabase
         .from('recent_foods')
-        .select('*')
+        .select('id, food_name, food_id, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -80,7 +80,7 @@ export default function FoodSearchScreen() {
       // Cargar favoritos
       const { data: favs } = await supabase
         .from('food_favorites')
-        .select('*')
+        .select('id, food_name, food_id, calories, protein_g, carbs_g, fat_g, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -89,7 +89,7 @@ export default function FoodSearchScreen() {
       // ✅ NUEVO: Cargar recetas guardadas
       const { data: recipes } = await supabase
         .from('saved_recipes')
-        .select('*')
+        .select('id, recipe_id, recipe_name, recipe_category, calories, protein, carbs, fat, time, saved_at')
         .eq('user_id', user.id)
         .order('saved_at', { ascending: false });
       if (recipes) setSavedRecipes(recipes);
@@ -236,7 +236,7 @@ export default function FoodSearchScreen() {
       protein_g: food.per100g.protein,
       carbs_g:   food.per100g.carbs,
       fat_g:     food.per100g.fat,
-    }).select().single();
+    }).select('id, food_name, food_id, calories, protein_g, carbs_g, fat_g').single();
 
     if (error || !data) {
       setFavorites(prev => prev.filter(f => f.food_id !== food.id));

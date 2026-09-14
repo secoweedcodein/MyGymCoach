@@ -64,8 +64,8 @@ export default function MealPlanScreen() {
     const weekStr = toDayKey(weekStart);
 
     const [planRes, goalsRes] = await Promise.all([
-      supabase.from('meal_plans').select('*').eq('user_id', user.id).eq('week_start', weekStr).order('day_of_week').order('meal_type'),
-      supabase.from('nutrition_goals').select('*').eq('user_id', user.id).maybeSingle(),
+      supabase.from('meal_plans').select('id, day_of_week, meal_type, food_name, calories, protein_g, carbs_g, fat_g, quantity_g').eq('user_id', user.id).eq('week_start', weekStr).order('day_of_week').order('meal_type'),
+      supabase.from('nutrition_goals').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).maybeSingle(),
     ]);
 
     if (planRes.data)  setPlan(planRes.data);

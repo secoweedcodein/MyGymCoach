@@ -19,22 +19,31 @@ export async function sendMessageToCoach(messages, userContext) {
     });
 
     if (error) {
-      console.error('[coachChat] Error de Supabase:', error);
-      throw new Error(error.message || 'Error del servidor');
+      // Errores del negocio (cuota diaria, configuración del servidor) NO deben
+      // caer en el fallback local: se muestran tal cual al usuario.
+      const message = data?.error || error.message || 'Error del servidor';
+      const serverError = new Error(message);
+      serverError.code = data?.code || error.context?.code;
+      if (serverError.code === 'quota') serverError.quota = true;
+      throw serverError;
     }
 
     if (data?.error) {
-      throw new Error(data.error);
+      const serverError = new Error(data.error);
+      serverError.code = data.code;
+      if (data.code === 'quota') serverError.quota = true;
+      throw serverError;
     }
 
     return data?.reply || 'No pude procesar tu mensaje.';
   } catch (err) {
+    if (err.quota || err.code) {
+      throw err;
+    }
     console.error('[coachChat] Error:', err);
-    // Fallback inteligente sin IA
-    return generateRuleBasedResponse(
-      messages[messages.length - 1].content, 
-      userContext
-    );
+    // Fallback inteligente sin IA (solo para fallos de red/proveedor)
+    const lastInput = messages[messages.length - 1]?.content || '';
+    return generateRuleBasedResponse(lastInput, userContext);
   }
 }
 

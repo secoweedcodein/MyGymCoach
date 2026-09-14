@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, Alert, ActivityIndicator, Modal,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
+import { generateRecipe } from '../../../services/recipeGenerator';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -24,14 +25,14 @@ export default function AdminRecipeFormScreen() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aiVisible, setAiVisible] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
   const [form, setForm] = useState({
     name: '',
     subtitle: '',
     category: 'Almuerzo',
-    difficulty: 'Fácil',
     time: '',
-    servings: '1',
-    description: '',
     calories: '',
     protein: '',
     carbs: '',
@@ -39,7 +40,6 @@ export default function AdminRecipeFormScreen() {
     tags: [],
     ingredients: [],
     steps: [],
-    tips: '',
   });
 
   useEffect(() => {
@@ -63,19 +63,15 @@ export default function AdminRecipeFormScreen() {
     setForm({
       name: data.name,
       subtitle: data.subtitle || '',
-      category: data.category,
-      difficulty: data.difficulty,
-      time: data.time,
-      servings: String(data.servings),
-      description: data.description || '',
-      calories: String(data.calories),
-      protein: String(data.protein),
-      carbs: String(data.carbs),
-      fat: String(data.fat),
+      category: data.category || 'Almuerzo',
+      time: data.time || '',
+      calories: String(data.calories ?? ''),
+      protein: String(data.protein ?? ''),
+      carbs: String(data.carbs_g ?? data.carbs ?? ''),
+      fat: String(data.fat_g ?? data.fat ?? ''),
       tags: data.tags || [],
       ingredients: data.ingredients || [],
-      steps: data.steps || [],
-      tips: data.tips || '',
+      steps: data.instructions || data.steps || [],
     });
     setLoading(false);
   }
@@ -152,19 +148,14 @@ export default function AdminRecipeFormScreen() {
       name: form.name.trim(),
       subtitle: form.subtitle.trim(),
       category: form.category,
-      difficulty: form.difficulty,
       time: form.time.trim(),
-      servings: parseInt(form.servings) || 1,
-      description: form.description.trim(),
       calories: parseInt(form.calories),
       protein: parseInt(form.protein),
-      carbs: parseInt(form.carbs),
-      fat: parseInt(form.fat),
+      carbs_g: parseInt(form.carbs),
+      fat_g: parseInt(form.fat),
       tags: form.tags.filter(t => t.trim()),
       ingredients: form.ingredients.filter(i => i.name.trim()),
-      steps: form.steps.filter(s => s.trim()),
-      tips: form.tips.trim(),
-      updated_at: new Date().toISOString(),
+      instructions: form.steps.filter(s => s.trim()),
     };
 
     let error;
@@ -187,6 +178,37 @@ export default function AdminRecipeFormScreen() {
     }
   }
 
+  async function handleGenerate() {
+    if (!aiPrompt.trim()) return Alert.alert('Error', 'Describe la receta que quieres generar.');
+    setAiLoading(true);
+    try {
+      const { recipe } = await generateRecipe({ prompt: aiPrompt, category: form.category });
+      setForm(prev => ({
+        ...prev,
+        name: recipe.name || prev.name,
+        subtitle: recipe.subtitle || prev.subtitle,
+        category: CATEGORIES.includes(recipe.category) ? recipe.category : prev.category,
+        time: recipe.time || prev.time,
+        calories: String(recipe.calories ?? prev.calories),
+        protein: String(recipe.protein ?? prev.protein),
+        carbs: String(recipe.carbs ?? prev.carbs),
+        fat: String(recipe.fat ?? prev.fat),
+        tags: recipe.tags || prev.tags,
+        ingredients: recipe.ingredients || prev.ingredients,
+        steps: recipe.instructions || prev.steps,
+      }));
+      setAiVisible(false);
+      Alert.alert('Receta generada', 'Revisa y edita los campos antes de guardar.');
+    } catch (err) {
+      Alert.alert(
+        err.quota ? 'Límite diario alcanzado' : 'Error al generar',
+        err.message || 'Inténtalo de nuevo más tarde.',
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <View style={s.loading}>
@@ -206,20 +228,17 @@ export default function AdminRecipeFormScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {/* GENERAR CON IA */}
+        <TouchableOpacity style={s.aiGenBtn} onPress={() => setAiVisible(true)} activeOpacity={0.85}>
+          <Ionicons name="sparkles" size={18} color={BG} />
+          <Text style={s.aiGenBtnText}>Generar receta con IA</Text>
+        </TouchableOpacity>
+
         {/* INFO BÁSICA */}
         <Text style={s.sectionLabel}>INFORMACIÓN BÁSICA</Text>
         <Input label="Nombre *" value={form.name} onChangeText={v => updateField('name', v)} placeholder="Ej: Bowl Proteico de Pollo" />
         <Input label="Subtítulo" value={form.subtitle} onChangeText={v => updateField('subtitle', v)} placeholder="Ej: Alto en proteína · Post-entreno" />
-        <Input label="Descripción" value={form.description} onChangeText={v => updateField('description', v)} placeholder="Descripción corta..." />
-
-        <View style={s.row}>
-          <View style={{ flex: 1 }}>
-            <Input label="Tiempo *" value={form.time} onChangeText={v => updateField('time', v)} placeholder="Ej: 20 min" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Input label="Porciones" value={form.servings} onChangeText={v => updateField('servings', v)} placeholder="1" keyboardType="numeric" />
-          </View>
-        </View>
+        <Input label="Tiempo *" value={form.time} onChangeText={v => updateField('time', v)} placeholder="Ej: 20 min" />
 
         {/* CATEGORÍA */}
         <Text style={s.sectionLabel}>CATEGORÍA</Text>
@@ -233,23 +252,6 @@ export default function AdminRecipeFormScreen() {
             >
               <Text style={[s.categoryBtnText, form.category === cat && s.categoryBtnTextActive]}>
                 {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* DIFICULTAD */}
-        <Text style={s.sectionLabel}>DIFICULTAD</Text>
-        <View style={s.categoriesRow}>
-          {['Muy fácil', 'Fácil', 'Media', 'Difícil'].map(diff => (
-            <TouchableOpacity
-              key={diff}
-              style={[s.categoryBtn, form.difficulty === diff && s.categoryBtnActive]}
-              onPress={() => updateField('difficulty', diff)}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.categoryBtnText, form.difficulty === diff && s.categoryBtnTextActive]}>
-                {diff}
               </Text>
             </TouchableOpacity>
           ))}
@@ -352,17 +354,6 @@ export default function AdminRecipeFormScreen() {
           <Text style={s.addBtnText}>Agregar paso</Text>
         </TouchableOpacity>
 
-        {/* TIPS */}
-        <Text style={s.sectionLabel}>TIP DEL COACH</Text>
-        <TextInput
-          style={[s.input, { height: 80, textAlignVertical: 'top' }]}
-          value={form.tips}
-          onChangeText={v => updateField('tips', v)}
-          placeholder="Consejo útil para el usuario..."
-          placeholderTextColor={T3}
-          multiline
-        />
-
         {/* BOTÓN GUARDAR */}
         <TouchableOpacity
           style={[s.saveBtn, saving && s.saveBtnDisabled]}
@@ -377,6 +368,42 @@ export default function AdminRecipeFormScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* MODAL GENERACIÓN IA */}
+      <Modal visible={aiVisible} transparent animationType="fade" onRequestClose={() => setAiVisible(false)}>
+        <View style={s.aiOverlay}>
+          <View style={s.aiCard}>
+            <Text style={s.aiTitle}>Generar receta con IA</Text>
+            <Text style={s.aiSubtitle}>
+              Describe plato, ingredientes o macros. Límite: 10 generaciones/día.
+            </Text>
+            <TextInput
+              style={s.aiInput}
+              value={aiPrompt}
+              onChangeText={setAiPrompt}
+              placeholder="Ej: bowl de pollo con quinoa y aguacate, alto en proteína, ~500 kcal"
+              placeholderTextColor={T3}
+              multiline
+            />
+            <Text style={s.aiCategory}>Categoría: {form.category}</Text>
+            <TouchableOpacity
+              style={[s.aiBtn, aiLoading && s.aiBtnDisabled]}
+              onPress={handleGenerate}
+              disabled={aiLoading}
+              activeOpacity={0.85}
+            >
+              {aiLoading ? (
+                <ActivityIndicator color={BG} />
+              ) : (
+                <Text style={s.aiBtnText}>Generar receta</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={s.aiCancel} onPress={() => setAiVisible(false)}>
+              <Text style={s.aiCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -407,7 +434,6 @@ const s = StyleSheet.create({
   scroll: { padding: 20 },
   sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: T3, textTransform: 'uppercase', marginTop: 20, marginBottom: 10 },
 
-  row: { flexDirection: 'row', gap: 10 },
   macrosRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
 
   inputWrap: { marginBottom: 14 },
@@ -434,4 +460,19 @@ const s = StyleSheet.create({
   saveBtn: { backgroundColor: ACCENT, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 20 },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { fontSize: 15, fontWeight: '800', color: BG },
+
+  aiGenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: ACCENT, borderRadius: 14, paddingVertical: 15, marginBottom: 4 },
+  aiGenBtnText: { fontSize: 15, fontWeight: '800', color: BG },
+
+  aiOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  aiCard: { width: '100%', backgroundColor: SURFACE, borderRadius: 18, padding: 20, borderWidth: 1, borderColor: BORDER },
+  aiTitle: { fontSize: 17, fontWeight: '800', color: T1, marginBottom: 6 },
+  aiSubtitle: { fontSize: 13, color: T2, lineHeight: 19, marginBottom: 14 },
+  aiInput: { minHeight: 90, backgroundColor: BG, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: T1, fontSize: 14, borderWidth: 1, borderColor: BORDER, textAlignVertical: 'top' },
+  aiCategory: { fontSize: 12, color: T2, fontWeight: '600', marginTop: 12, marginBottom: 4 },
+  aiBtn: { backgroundColor: ACCENT, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  aiBtnDisabled: { opacity: 0.6 },
+  aiBtnText: { fontSize: 14, fontWeight: '800', color: BG },
+  aiCancel: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
+  aiCancelText: { fontSize: 14, color: T2, fontWeight: '600' },
 });

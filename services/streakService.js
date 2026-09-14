@@ -1,79 +1,87 @@
-// services/streakService.js - REEMPLAZAR COMPLETAMENTE
-
+// services/streakService.js
+//
+// Racha de entrenamiento por CONSISTENCIA (FASE 4):
+//   - No asume que entrenar todos los días es obligatorio.
+//   - La separación tolerada entre entrenamientos deriva de los días planificados
+//     por semana (user_profiles.days_per_week, default 3).
+//   - Cálculo con aritmética civil sobre claves YYYY-MM-DD locales: inmune al
+//     desfase de zona horaria que producía toISOString().
 import { supabase } from '../lib/supabase';
+import { computeWorkoutStreak } from '../lib/trainingLogic';
+import { todayKey } from '../lib/dateUtils';
 
-export const getUserStreak = async (userId) => {
+const DEFAULT_PLANNED_DAYS = 3;
+
+/**
+ * Calcula la racha basándose en consistencia respecto de los días planificados.
+ * @param {string} userId
+ * @param {{ plannedDaysPerWeek?: number }} [opts]
+ */
+export const getUserStreak = async (userId, opts = {}) => {
   try {
-    // Obtener todas las sesiones ordenadas por fecha
+    if (!userId) {
+      return { currentStreak: 0, longestStreak: 0, today: false, plannedDaysPerWeek: DEFAULT_PLANNED_DAYS, pendingToday: false };
+    }
+
+    // Días planificados por semana (consistencia, no obligación diaria).
+    const planned = opts.plannedDaysPerWeek ?? await getPlannedDaysPerWeek(userId);
+
     const { data: sessions, error } = await supabase
       .from('workout_sessions')
-      .select('started_at')
+      .select('finished_at')
       .eq('user_id', userId)
-      .order('started_at', { ascending: false });
+      .order('finished_at', { ascending: false });
 
     if (error || !sessions || sessions.length === 0) {
-      return { currentStreak: 0, longestStreak: 0, today: false };
+      return { currentStreak: 0, longestStreak: 0, today: false, plannedDaysPerWeek: planned, pendingToday: false };
     }
 
-    // Obtener fechas únicas (solo día, sin hora)
-    const uniqueDates = [...new Set(
-      sessions.map(s => new Date(s.started_at).toISOString().split('T')[0])
-    )].sort().reverse();
+    // Claves locales (YYYY-MM-DD) en la zona del dispositivo.
+    const keys = sessions.map(s => toLocalDayKey(s.finished_at)).filter(Boolean);
 
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-    // ¿Entrenó hoy o ayer? (gracia de 1 día)
-    const hasRecentWorkout = uniqueDates[0] === today || uniqueDates[0] === yesterday;
-    
-    if (!hasRecentWorkout) {
-      return { currentStreak: 0, longestStreak: 0, today: false };
-    }
-
-    // Calcular racha actual
-    let currentStreak = 1;
-    let previousDate = uniqueDates[0];
-
-    for (let i = 1; i < uniqueDates.length; i++) {
-      const currentDate = uniqueDates[i];
-      const daysDiff = Math.floor(
-        (new Date(previousDate) - new Date(currentDate)) / 86400000
-      );
-
-      if (daysDiff === 1) {
-        currentStreak++;
-        previousDate = currentDate;
-      } else {
-        break;
-      }
-    }
-
-    // Calcular racha más larga
-    let longestStreak = currentStreak;
-    let tempStreak = 1;
-
-    for (let i = 0; i < uniqueDates.length - 1; i++) {
-      const daysDiff = Math.floor(
-        (new Date(uniqueDates[i]) - new Date(uniqueDates[i + 1])) / 86400000
-      );
-
-      if (daysDiff === 1) {
-        tempStreak++;
-      } else {
-        longestStreak = Math.max(longestStreak, tempStreak);
-        tempStreak = 1;
-      }
-    }
-
-    longestStreak = Math.max(longestStreak, tempStreak);
+    const streak = computeWorkoutStreak(keys, {
+      plannedDaysPerWeek: planned,
+      today: todayKey(),
+    });
 
     return {
-      currentStreak,
-      longestStreak,
-      today: uniqueDates[0] === today
+      currentStreak: streak.current,
+      longestStreak: streak.longest,
+      today: streak.today,
+      plannedDaysPerWeek: planned,
+      maxGap: streak.maxGap,
+      pendingToday: !streak.today && streak.lastWorkoutDay ? streak.current > 0 : false,
     };
   } catch (error) {
     console.error('Error calculating streak:', error);
-    return { currentStreak: 0, longestStreak: 0, today: false };
+    return { currentStreak: 0, longestStreak: 0, today: false, plannedDaysPerWeek: DEFAULT_PLANNED_DAYS, pendingToday: false };
   }
 };
+
+async function getPlannedDaysPerWeek(userId) {
+  try {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('days_per_week')
+      .eq('id', userId)
+      .maybeSingle();
+    const v = Number(data?.days_per_week);
+    return v >= 1 && v <= 7 ? v : DEFAULT_PLANNED_DAYS;
+  } catch {
+    return DEFAULT_PLANNED_DAYS;
+  }
+}
+
+// Convierte un timestamp ISO a clave local YYYY-MM-DD sin off-by-one de timezone.
+function toLocalDayKey(iso) {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  } catch {
+    return null;
+  }
+}

@@ -136,7 +136,12 @@ function RoutineCard({ routine, index }) {
           router.push(`/explore/challenge-dynamic?id=${routine.id}`);
         }
       } else {
-        router.push(`/explore/routine-detail?id=${routine.id}`);
+        const routineObj = {
+          id: routine.id,
+          name: routine.name,
+          exercise_ids: routine.exercise_ids || [],
+        };
+        router.push(`/workout?routine=${encodeURIComponent(JSON.stringify(routineObj))}`);
       }
     }
   };

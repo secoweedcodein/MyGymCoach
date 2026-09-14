@@ -113,7 +113,13 @@ export default function CoachChatScreen() {
         });
       }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Hubo un error procesando tu mensaje. Intenta de nuevo.' }]);
+      const isQuota = !!(err && err.quota);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: isQuota
+          ? `⏳ ${err.message}`
+          : 'Hubo un error procesando tu mensaje. Intenta de nuevo.',
+      }]);
     } finally {
       setLoading(false);
     }

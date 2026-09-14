@@ -2,14 +2,15 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Animated, ActivityIndicator, Modal,} from 'react-native';
+  StyleSheet, Animated, ActivityIndicator, Modal, TextInput, Alert,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { toDayKey, todayKey } from '../../lib/dateUtils';
+import { todayKey } from '../../lib/dateUtils';
+import { sumMacros, rescaleEntry } from '../../lib/nutritionStats';
 import BarcodeScannerScreen from './BarcodeScannerScreen.js';
 import { copyYesterdayMeals } from '../../services/nutritionService';
-import { Alert } from 'react-native'; // Asegúrate de que Alert esté importado
 
 const ACCENT  = '#C0FF3E';
 const BG      = '#0D0D0D';
@@ -154,6 +155,11 @@ export default function NutritionScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [currentMealType, setCurrentMealType] = useState('breakfast');
 
+  // ── Edición de un registro (cambiar cantidad y/o comida) ──
+  const [editingItem, setEditingItem] = useState(null);
+  const [editGrams, setEditGrams]     = useState('100');
+  const [editMeal, setEditMeal]       = useState('breakfast');
+
   useFocusEffect(useCallback(() => { loadAll(); }, []));
 
   async function loadAll() {
@@ -164,17 +170,16 @@ export default function NutritionScreen() {
 
     const today = todayKey();
 
-    // ✅ NUEVO: Consultamos también la tabla saved_recipes
     const [logsRes, goalsRes, savedRecipesRes] = await Promise.all([
-      supabase.from('nutrition_logs').select('*').eq('user_id', user.id).eq('logged_date', today).order('created_at'),
-      supabase.from('nutrition_goals').select('*').eq('user_id', user.id).maybeSingle(),
-      supabase.from('saved_recipes').select('*').eq('user_id', user.id).order('saved_at', { ascending: false }).limit(5),
+      supabase.from('nutrition_logs').select('id, meal_type, food_name, food_id, barcode, calories, protein_g, carbs_g, fat_g, quantity_g, logged_date, created_at').eq('user_id', user.id).eq('logged_date', today).order('created_at'),
+      supabase.from('nutrition_goals').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).maybeSingle(),
+      supabase.from('saved_recipes').select('id, recipe_id, recipe_name, recipe_category, calories, protein, time, saved_at').eq('user_id', user.id).order('saved_at', { ascending: false }).limit(5),
     ]);
 
     if (logsRes.data) setTodayLog(logsRes.data);
     if (goalsRes.data) setGoals(goalsRes.data);
-    if (savedRecipesRes.data) setSavedRecipes(savedRecipesRes.data); // ✅ Guardamos las recetas
-    
+    if (savedRecipesRes.data) setSavedRecipes(savedRecipesRes.data);
+
     setLoading(false);
   }
   const handleCopyYesterday = async () => {
@@ -182,7 +187,7 @@ export default function NutritionScreen() {
     const result = await copyYesterdayMeals(userId);
     if (result.success) {
       Alert.alert('✅ Éxito', result.message);
-      loadAll(); // Recarga la pantalla para mostrar las nuevas comidas
+      loadAll();
     } else {
       Alert.alert('⚠️ Aviso', result.message);
     }
@@ -191,64 +196,33 @@ export default function NutritionScreen() {
     await supabase.from('nutrition_logs').delete().eq('id', id);
     loadAll();
   }
-    async function removeFood(id) {
-    await supabase.from('nutrition_logs').delete().eq('id', id);
-    loadAll();
+
+  function beginEdit(item) {
+    setEditingItem(item);
+    setEditGrams(String(item.quantity_g || '100'));
+    setEditMeal(item.meal_type || 'snack');
   }
 
-  // ── NUEVO: Función para copiar comidas de ayer ──────────────────────────────
-  const copyYesterdayMeals = async () => {
-    if (!userId) return;
-    
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = toDayKey(yesterday);
-    const todayStr = todayKey();
-
-    try {
-      // 1. Obtener comidas de ayer
-      const { data: yesterdayLogs, error: fetchError } = await supabase
-        .from('nutrition_logs')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('logged_date', yesterdayStr);
-
-      if (fetchError) throw fetchError;
-
-      if (!yesterdayLogs || yesterdayLogs.length === 0) {
-        Alert.alert('⚠️ Aviso', 'No hay comidas registradas el día de ayer.');
-        return;
-      }
-
-      // 2. Preparar datos para hoy (omitimos el 'id' para que Supabase genere uno nuevo)
-      const todayLogs = yesterdayLogs.map(log => ({
-        user_id: userId,
-        logged_date: todayStr,
-        meal_type: log.meal_type,
-        food_name: log.food_name,
-        food_id: log.food_id,
-        calories: log.calories,
-        protein_g: log.protein_g,
-        carbs_g: log.carbs_g,
-        fat_g: log.fat_g,
-        quantity_g: log.quantity_g,
-      }));
-
-      // 3. Insertar en la base de datos
-      const { error: insertError } = await supabase
-        .from('nutrition_logs')
-        .insert(todayLogs);
-
-      if (insertError) throw insertError;
-
-      Alert.alert('✅ ¡Éxito!', `Se copiaron ${todayLogs.length} comidas a hoy.`);
-      loadAll(); // Recargar la pantalla para mostrar los nuevos datos
-
-    } catch (error) {
-      console.error('Error al copiar comidas:', error);
-      Alert.alert('❌ Error', 'No se pudieron copiar las comidas. Intenta de nuevo.');
-    }
-  };
+  async function saveEdit() {
+    if (!editingItem) return;
+    const g = parseFloat(editGrams);
+    if (!g || g <= 0) { Alert.alert('Cantidad inválida', 'Ingresa los gramos.'); return; }
+    const updated = rescaleEntry(editingItem, g);
+    const { error } = await supabase
+      .from('nutrition_logs')
+      .update({
+        meal_type:  editMeal,
+        quantity_g: updated.quantity_g,
+        calories:   updated.calories,
+        protein_g:  updated.protein_g,
+        carbs_g:    updated.carbs_g,
+        fat_g:      updated.fat_g,
+      })
+      .eq('id', editingItem.id);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setEditingItem(null);
+    loadAll();
+  }
 
   const openScanner = (mealType) => {
     setCurrentMealType(mealType);
@@ -263,12 +237,7 @@ export default function NutritionScreen() {
     loadAll();
   };
 
-  const totals = todayLog.reduce((acc, item) => ({
-    calories: acc.calories + (item.calories  || 0),
-    protein:  acc.protein  + (item.protein_g || 0),
-    carbs:    acc.carbs    + (item.carbs_g   || 0),
-    fat:      acc.fat      + (item.fat_g     || 0),
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const totals = sumMacros(todayLog);
 
   const byMeal = Object.keys(MEAL_CONFIG).reduce((acc, key) => {
     acc[key] = todayLog.filter(item => item.meal_type === key);
@@ -359,10 +328,9 @@ export default function NutritionScreen() {
           </>
         )}
   {/* ── BOTÓN COPIAR AYER ── */}
-          {/* ── BOTÓN COPIAR AYER ── */}
         <TouchableOpacity 
           style={s.copyYesterdayBtn} 
-          onPress={copyYesterdayMeals} 
+          onPress={handleCopyYesterday} 
           activeOpacity={0.8}
         >
           <Text style={s.copyYesterdayIcon}>📋</Text>
@@ -371,9 +339,6 @@ export default function NutritionScreen() {
             <Text style={s.copyYesterdaySub}>Duplica tu registro anterior con un toque</Text>
           </View>
         </TouchableOpacity>
-
-        {/* ── COMIDAS DEL DÍA ── */}
-        <Text style={s.sectionLabel}>COMIDAS DEL DÍA</Text>
 
         {/* ── COMIDAS DEL DÍA ── */}
         <Text style={s.sectionLabel}>COMIDAS DEL DÍA</Text>
@@ -406,7 +371,12 @@ export default function NutritionScreen() {
               </View>
 
               {items.map(item => (
-                <View key={item.id} style={s.foodRow}>
+                <TouchableOpacity
+                  key={item.id}
+                  style={s.foodRow}
+                  onPress={() => beginEdit(item)}
+                  activeOpacity={0.6}
+                >
                   <View style={{ flex: 1 }}>
                     <Text style={s.foodName} numberOfLines={1}>{item.food_name}</Text>
                     <Text style={s.foodMacros}>
@@ -418,7 +388,7 @@ export default function NutritionScreen() {
                   <TouchableOpacity onPress={() => removeFood(item.id)} style={s.removeFood} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Text style={s.removeFoodText}>✕</Text>
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               ))}
 
               {items.length === 0 && (
@@ -456,6 +426,51 @@ export default function NutritionScreen() {
       {/* ── MODAL DEL ESCÁNER ── */}
       <Modal visible={showScanner} animationType="slide" presentationStyle="fullScreen" onRequestClose={closeScanner}>
         <BarcodeScannerScreen userId={userId} mealType={currentMealType} onFoodAdded={handleFoodAdded} onClose={closeScanner} />
+      </Modal>
+
+      {/* ── MODAL DE EDICIÓN DE REGISTRO ── */}
+      <Modal visible={!!editingItem} transparent animationType="fade" onRequestClose={() => setEditingItem(null)}>
+        <View style={s.editOverlay}>
+          <View style={s.editCard}>
+            <Text style={s.editTitle}>Editar alimento</Text>
+            <Text style={s.editSub}>{editingItem?.food_name}</Text>
+
+            <Text style={s.editLabel}>CANTIDAD (g)</Text>
+            <TextInput
+              style={s.editInput}
+              value={editGrams}
+              onChangeText={setEditGrams}
+              keyboardType="numeric"
+              placeholder="100"
+              placeholderTextColor={T3}
+            />
+
+            <Text style={s.editLabel}>COMIDA</Text>
+            <View style={s.editMealRow}>
+              {Object.entries(MEAL_CONFIG).map(([key, cfg]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[s.editMealChip, editMeal === key && { backgroundColor: cfg.color + '22', borderColor: cfg.color }]}
+                  onPress={() => setEditMeal(key)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.editMealChipText, { color: editMeal === key ? cfg.color : T3 }]}>
+                    {cfg.icon} {cfg.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={s.editButtons}>
+              <TouchableOpacity style={s.editCancelBtn} onPress={() => setEditingItem(null)} activeOpacity={0.8}>
+                <Text style={s.editCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.editSaveBtn} onPress={saveEdit} activeOpacity={0.8}>
+                <Text style={s.editSaveText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
     </View>
@@ -570,4 +585,20 @@ const s = StyleSheet.create({
   copyYesterdayIcon: { fontSize: 24 },
   copyYesterdayTitle: { fontSize: 14, fontWeight: '700', color: ACCENT },
   copyYesterdaySub: { fontSize: 11, color: T3, marginTop: 2 },
+
+  // ── Modal de edición de registro ──
+  editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  editCard: { width: '100%', backgroundColor: SURFACE, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: BORDER2 },
+  editTitle: { fontSize: 17, fontWeight: '800', color: T1 },
+  editSub: { fontSize: 12, color: T2, marginTop: 3, marginBottom: 14 },
+  editLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, color: T3, marginBottom: 6, marginTop: 10 },
+  editInput: { backgroundColor: SRF2, borderRadius: 10, borderWidth: 1, borderColor: BORDER2, paddingHorizontal: 12, paddingVertical: 10, color: T1, fontSize: 14 },
+  editMealRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  editMealChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: SRF2, borderWidth: 1, borderColor: BORDER2, marginBottom: 4 },
+  editMealChipText: { fontSize: 12, fontWeight: '600' },
+  editButtons: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  editCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: SRF2, alignItems: 'center' },
+  editCancelText: { fontSize: 13, fontWeight: '700', color: T2 },
+  editSaveBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: ACCENT, alignItems: 'center' },
+  editSaveText: { fontSize: 13, fontWeight: '800', color: '#000' },
 });

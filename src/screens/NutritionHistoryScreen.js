@@ -6,6 +6,13 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import {
+  computeDailyTotals,
+  computeAverages,
+  computeCompliance,
+  topFoods as computeTopFoods,
+  sumByMeal,
+} from '../../lib/nutritionStats';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
@@ -92,7 +99,7 @@ export default function NutritionHistoryScreen() {
 
       const { data: goalsData } = await supabase
         .from('nutrition_goals')
-        .select('*')
+        .select('calories, protein_g, carbs_g, fat_g')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -126,79 +133,24 @@ export default function NutritionHistoryScreen() {
     return getDaysArray(periodConfig.days);
   }, [period]);
 
-  // Agrupar logs por día
-  const logsByDay = useMemo(() => {
-    const map = {};
-    daysArray.forEach(d => { map[d] = []; });
-    logs.forEach(log => {
-      if (map[log.logged_date]) map[log.logged_date].push(log);
-    });
-    return map;
-  }, [logs, daysArray]);
+  // Totales por día (fila correcta con 0 en días sin datos)
+  const dailyTotals = useMemo(
+    () => computeDailyTotals(logs, daysArray),
+    [logs, daysArray]
+  );
 
-  // Totales por día
-  const dailyTotals = useMemo(() => {
-    return daysArray.map(date => {
-      const dayLogs = logsByDay[date] || [];
-      return {
-        date,
-        calories: dayLogs.reduce((a, l) => a + (l.calories || 0), 0),
-        protein:  dayLogs.reduce((a, l) => a + (l.protein_g || 0), 0),
-        carbs:    dayLogs.reduce((a, l) => a + (l.carbs_g || 0), 0),
-        fat:      dayLogs.reduce((a, l) => a + (l.fat_g || 0), 0),
-      };
-    });
-  }, [logsByDay, daysArray]);
+  // Promedios (solo días con datos)
+  const averages = useMemo(() => computeAverages(dailyTotals), [dailyTotals]);
 
-  // Promedios
-  const averages = useMemo(() => {
-    const daysWithData = dailyTotals.filter(d => d.calories > 0);
-    const n = daysWithData.length || 1;
-    return {
-      calories: Math.round(daysWithData.reduce((a, d) => a + d.calories, 0) / n),
-      protein:  Math.round(daysWithData.reduce((a, d) => a + d.protein, 0) / n),
-      carbs:    Math.round(daysWithData.reduce((a, d) => a + d.carbs, 0) / n),
-      fat:      Math.round(daysWithData.reduce((a, d) => a + d.fat, 0) / n),
-    };
-  }, [dailyTotals]);
-
-  // Cumplimiento de objetivos
-  const compliance = useMemo(() => {
-    if (!goals) return { calDays: 0, protDays: 0, bothDays: 0, total: 0 };
-    const daysWithData = dailyTotals.filter(d => d.calories > 0);
-    const total = daysWithData.length;
-    let calDays = 0, protDays = 0, bothDays = 0;
-    daysWithData.forEach(d => {
-      const calOk = d.calories >= goals.calories * 0.9 && d.calories <= goals.calories * 1.1;
-      const protOk = d.protein >= goals.protein_g * 0.9;
-      if (calOk) calDays++;
-      if (protOk) protDays++;
-      if (calOk && protOk) bothDays++;
-    });
-    return { calDays, protDays, bothDays, total };
-  }, [dailyTotals, goals]);
+  // Cumplimiento de objetivos (calorías ±10% / proteína >= 90%)
+  const compliance = useMemo(() => computeCompliance(dailyTotals, goals), [dailyTotals, goals]);
 
   // Top alimentos
-  const topFoods = useMemo(() => {
-    const count = {};
-    logs.forEach(l => {
-      const name = l.food_name || 'Sin nombre';
-      count[name] = (count[name] || 0) + 1;
-    });
-    return Object.entries(count)
-      .map(([name, times]) => ({ name, times }))
-      .sort((a, b) => b.times - a.times)
-      .slice(0, 5);
-  }, [logs]);
+  const topFoods = useMemo(() => computeTopFoods(logs, 5), [logs]);
 
   // Distribución por comida
   const mealDistribution = useMemo(() => {
-    const dist = { breakfast: 0, lunch: 0, dinner: 0, snack: 0 };
-    logs.forEach(l => {
-      if (dist[l.meal_type] !== undefined) {
-        dist[l.meal_type] += l.calories || 0;
-      }
-    });
+    const dist = sumByMeal(logs);
     const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
     const daysCount = daysArray.length || 1;
     return Object.entries(dist).map(([key, cal]) => ({
@@ -348,9 +300,7 @@ export default function NutritionHistoryScreen() {
           <View style={st.adherenceRow}>
             <Text style={st.adherenceLabel}>Adherencia total</Text>
             <Text style={st.adherenceValue}>
-              {compliance.total > 0
-                ? Math.round((compliance.bothDays / compliance.total) * 100)
-                : 0}%
+              {compliance.adherencePct}%
             </Text>
           </View>
         </View>

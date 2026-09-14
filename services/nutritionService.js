@@ -11,7 +11,7 @@ export const copyYesterdayMeals = async (userId) => {
     // 1. Obtener comidas de ayer
     const { data: yesterdayLogs, error: fetchError } = await supabase
       .from('nutrition_logs')
-      .select('*')
+      .select('meal_type, food_name, food_id, calories, protein_g, carbs_g, fat_g, quantity_g')
       .eq('user_id', userId)
       .eq('logged_date', yesterdayStr);
 

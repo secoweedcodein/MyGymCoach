@@ -12,6 +12,7 @@ import RecordToast from '../../components/RecordToast.js';
 import { usePersonalRecords } from './hooks/usePersonalRecords.js';
 import { useAlert } from "../context/AlertContext.js";
 import { flushPendingSessions, saveWorkoutSession, enqueuePendingSession, isNetworkError } from '../../services/workoutQueueService';
+import { createIdempotencyKey } from '../../lib/trainingLogic';
 import { PlateCalculatorModal } from '../../components/PlateCalculatorModal.js';
 import { RPESelector } from '../../components/RPESelector.js';
 import { GymKeypad } from '../../components/GymKeypad.js';
@@ -238,6 +239,7 @@ export default function WorkoutScreen({ route }) {
 
   const [elapsed, setElapsed]         = useState(0);
   const elapsedRef                    = useRef(null);
+  const savingRef                     = useRef(false);   // FASE 4: evita doble pulsación de Guardar
   const [restSec, setRestSec]         = useState(120);
   const [restLeft, setRestLeft]       = useState(120);
   const [restRunning, setRestRunning] = useState(false);
@@ -257,7 +259,7 @@ export default function WorkoutScreen({ route }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
-      flushPendingSessions();
+      flushPendingSessions(user.id);
 
       const savedWorkout = await loadActiveWorkout();
 
@@ -272,12 +274,14 @@ export default function WorkoutScreen({ route }) {
     init();
   }, [rawRoutine]);
 
-  const initializeNewWorkout = () => {
+  const initializeNewWorkout = async () => {
     let targetIds = [];
 
+    // Rama A — rutinas curadas/retos (traen exercises con sets/reps/descanso):
     if (Array.isArray(routine?.exercises) && routine.exercises.length > 0) {
       const initialExercises = routine.exercises.map((ex, idx) => {
         const numSets = ex.sets || 3;
+        const rest = ex.rest_seconds ?? (Array.isArray(ex.rest) ? ex.rest[0] : ex.rest) ?? 120;
         const sets = [];
         for (let i = 0; i < numSets; i++) {
           sets.push({ kg: '', reps: ex.reps || '', type: 'N', done: false });
@@ -286,35 +290,66 @@ export default function WorkoutScreen({ route }) {
           exId: `challenge-${idx}`,
           name: ex.name,
           muscle: 'Core',
-          sets: sets,
+          sets,
+          targetRepsMin: ex.reps_min ?? null,
+          targetRepsMax: ex.reps_max ?? (ex.reps || null),
+          restSeconds: rest,
+          restRir: ex.rir ?? null,
+          restRpe: ex.rpe ?? null,
+          notes: ex.notes || null,
         };
       });
       setExercises(initialExercises);
+      const firstRest = initialExercises[0]?.restSeconds;
+      if (firstRest) { setRestSec(firstRest); setRestLeft(firstRest); }
       return;
     }
 
-    targetIds = Array.isArray(routine?.exercise_ids) && routine.exercise_ids.length > 0
-      ? routine.exercise_ids
-      : ['abs_plank', 'abs_crunch', 'abs_russian'];
+    // Rama B — rutina del usuario: cargar programación completa desde la BD.
+    const isUserRoutine = routine?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(routine.id));
+    const programmed = isUserRoutine ? await loadRoutineExercises(routine.id) : [];
 
-    const initialExercises = targetIds.map(id => ({
-      exId: id,
-      sets: [{ kg: '', reps: '', type: 'N', done: false }],
-    }));
+    targetIds = programmed.length > 0
+      ? programmed.map(p => p.exercise_id || p.exercise_name)
+      : (Array.isArray(routine?.exercise_ids) && routine.exercise_ids.length > 0
+        ? routine.exercise_ids
+        : ['abs_plank', 'abs_crunch', 'abs_russian']);
+
+    const initialExercises = targetIds.map((id, idx) => {
+      const prog = programmed[idx] || {};
+      const numSets = prog.target_sets || 3;
+      const sets = [];
+      for (let i = 0; i < numSets; i++) {
+        sets.push({ kg: '', reps: '', type: 'N', done: false });
+      }
+      return {
+        exId: id,
+        sets,
+        targetRepsMin: prog.target_reps_min ?? null,
+        targetRepsMax: prog.target_reps_max ?? null,
+        restSeconds: prog.rest_seconds || 120,
+        rir: prog.rir ?? null,
+        rpe: prog.rpe ?? null,
+        notes: prog.notes || null,
+      };
+    });
     setExercises(initialExercises);
+
+    const firstRest = initialExercises[0]?.restSeconds;
+    if (firstRest) { setRestSec(firstRest); setRestLeft(firstRest); }
 
     if (!userId) return;
 
     loadLastSessionData(userId).then(historySets => {
       if (historySets?.length > 0) {
         setExercises(
-          targetIds.map(id => {
+          targetIds.map((id, idx) => {
             const setsForEx = historySets.filter(s => s.exercise_id === id);
             return {
-              exId: id,
+              ...initialExercises[idx],
               sets: setsForEx.length > 0
-                ? setsForEx.map(s => ({ kg: String(s.weight_kg), reps: String(s.reps), type: s.set_type, done: false }))
-                : [{ kg: '', reps: '', type: 'N', done: false }],
+                ? setsForEx.map(s => ({ kg: String(s.weight_kg), reps: String(s.reps), type: s.set_type || 'N', done: false }))
+                : initialExercises[idx].sets,
             };
           })
         );
@@ -323,6 +358,21 @@ export default function WorkoutScreen({ route }) {
       console.log('Error cargando historial:', err);
     });
   };
+
+  // Cargar programación avanzada de una rutina de usuario (set/reps/descanso/orden).
+  async function loadRoutineExercises(routineId) {
+    try {
+      const { data } = await supabase
+        .from('routine_exercises')
+        .select('exercise_id, exercise_name, position, target_sets, target_reps_min, target_reps_max, rest_seconds, rir, rpe, notes')
+        .eq('routine_id', routineId)
+        .order('position', { ascending: true });
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.log('Error cargando rutina completa:', e);
+      return [];
+    }
+  }
 
   const recoverWorkout = () => {
     if (recoveredWorkout) {
@@ -487,10 +537,13 @@ export default function WorkoutScreen({ route }) {
         {
           text: 'Guardar',
           onPress: async () => {
+            if (savingRef.current) return;
+            savingRef.current = true;
             clearInterval(elapsedRef.current);
             clearInterval(restRef.current);
             
             if (!userId) {
+              savingRef.current = false;
               showAlert('Error', 'Usuario no autenticado');
               return;
             }
@@ -504,6 +557,7 @@ export default function WorkoutScreen({ route }) {
             }));
 
             if (totalSets === 0) {
+              savingRef.current = false;
               showAlert('Sin series', 'Completa al menos una serie antes de terminar.');
               return;
             }
@@ -529,11 +583,14 @@ export default function WorkoutScreen({ route }) {
               }
             }
 
+            const startedAt = new Date(Date.now() - elapsed * 1000).toISOString();
             const payload = {
               session: {
                 user_id:          userId,
+                routine_id:       routine?.id || null,
                 routine_name:     routine?.name || 'Entrenamiento',
-                started_at:       new Date(Date.now() - elapsed * 1000).toISOString(),
+                idempotency_key:  createIdempotencyKey(userId, startedAt),
+                started_at:       startedAt,
                 finished_at:      new Date().toISOString(),
                 total_sets:       totalSets,
                 total_volume_kg:  Math.round(totalVolume),
@@ -542,11 +599,13 @@ export default function WorkoutScreen({ route }) {
               sets: setsToInsert,
             };
 
+            // Confirmación/resiliencia: la sesión + sets + PR se guardan de forma
+            // transaccional e idempotente (RPC finish_workout si está desplegado).
             try {
-              await saveWorkoutSession(payload);
+              await saveWorkoutSession(payload, userId);
             } catch (saveError) {
               if (isNetworkError(saveError)) {
-                const queued = await enqueuePendingSession({ payload });
+                const queued = await enqueuePendingSession(payload, userId);
                 Vibration.vibrate([0, 200, 100, 200]);
                 showAlert(
                   'Sin conexión',
@@ -555,15 +614,18 @@ export default function WorkoutScreen({ route }) {
                     : 'No se pudo guardar la sesión. Intenta de nuevo.'
                 );
                 await clearActiveWorkout();
+                savingRef.current = false;
                 setTimeout(() => router.back(), 1500);
                 return;
               }
+              savingRef.current = false;
               showAlert('Error', saveError?.message || 'No se pudo guardar la sesión.');
               return;
             }
 
             Vibration.vibrate([0, 200, 100, 200]);
-            showAlert('¡Sesión guardada! 💪', `${totalSets} series · ${Math.round(totalVolume)} kg`);
+            const minutesDone = Math.max(1, Math.round(elapsed / 60));
+            showAlert('¡Sesión guardada! 💪', `${totalSets} series · ${Math.round(totalVolume)} kg · ${minutesDone} min`);
 
             // Limpiar el entrenamiento guardado
             await clearActiveWorkout();
@@ -695,6 +757,14 @@ export default function WorkoutScreen({ route }) {
                   <Text style={s.exName}>{ex?.name || 'Ejercicio'}</Text>
                   <Text style={s.exMuscleLabel}>{ex?.muscle}</Text>
                   <SeriesProgress done={doneHere} total={e.sets.length} />
+                  {e.targetRepsMax ? (
+                    <Text style={s.exTarget}>
+                      {e.targetRepsMin ? `${e.targetRepsMin}–${e.targetRepsMax}` : e.targetRepsMax} reps
+                      {e.rir ? ` · RIR ${e.rir}` : ''}
+                      {e.rpe ? ` · RPE ${e.rpe}` : ''}
+                    </Text>
+                  ) : null}
+                  {e.notes ? <Text style={s.exNotes}>{e.notes}</Text> : null}
                 </View>
                 <TouchableOpacity onPress={() => removeExercise(ei)} style={s.removeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Text style={s.removeBtnText}>✕</Text>
@@ -1035,6 +1105,8 @@ const s = StyleSheet.create({
   exInfo:      { flex: 1 },
   exName:      { fontSize: 15, fontWeight: '700', color: T1, letterSpacing: -0.3 },
   exMuscleLabel:{ fontSize: 11, color: T3, marginTop: 2, fontWeight: '500' },
+  exTarget:     { fontSize: 11, color: ACCENT, marginTop: 2, fontWeight: '600' },
+  exNotes:      { fontSize: 11, color: T3, marginTop: 2, fontStyle: 'italic' },
   removeBtn:   { paddingTop: 2 },
   removeBtnText:{ color: T3, fontSize: 16 },
 

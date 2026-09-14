@@ -26,13 +26,14 @@ export function usePersonalRecords(userId) {
     const weight = parseFloat(set.kg) || 0;
     const reps   = parseInt(set.reps) || 0;
 
-    const result = await checkAndSavePR(userId, exName, weight, reps, null);
+    const result = await checkAndSavePR(userId, exName, [{ weight_kg: weight, reps }], null);
     if (result?.isNewPR) {
       setNewRecord({
-        type: 'weight',
+        type: result.improved?.length >= 4 ? 'pr-full' : 'weight',
         exerciseName: exName,
         value: `${weight} kg × ${reps}`,
         unit: 'reps',
+        improved: result.improved || [],
       });
     }
   }

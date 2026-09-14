@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { todayKey } from '../../../lib/dateUtils';
 import { calculateDailyNutrition } from '../../../lib/nutritionCalculator';
 import { scaleNutrients } from '../../../services/foodService';
+import { sumMacros } from '../../../lib/nutritionStats';
 
 export function useNutrition(userId) {
   const [todayLog, setTodayLog] = useState([]);
@@ -17,12 +18,12 @@ export function useNutrition(userId) {
     const [logsRes, goalsRes, profileRes] = await Promise.all([
       supabase
         .from('nutrition_logs')
-        .select('*')
+        .select('id, meal_type, food_name, food_id, barcode, calories, protein_g, carbs_g, fat_g, quantity_g')
         .eq('user_id', userId)
         .eq('logged_date', today),
       supabase
         .from('nutrition_goals')
-        .select('*')
+        .select('calories, protein_g, carbs_g, fat_g')
         .eq('user_id', userId)
         .maybeSingle(),
       supabase
@@ -45,12 +46,7 @@ export function useNutrition(userId) {
   }, [userId]);
 
   // Totales del día
-  const totals = todayLog.reduce((acc, item) => ({
-    calories: acc.calories + (item.calories || 0),
-    protein:  acc.protein  + (item.protein_g || 0),
-    carbs:    acc.carbs    + (item.carbs_g   || 0),
-    fat:      acc.fat      + (item.fat_g     || 0),
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const totals = sumMacros(todayLog);
 
   async function addFood({ mealType, food, grams }) {
     if (!food?.per100g || !grams) return { error: new Error('Datos del alimento inválidos') };
