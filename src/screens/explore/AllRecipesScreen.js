@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, Dimensions, TextInput,
+  Image, Dimensions, TextInput, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,59 +26,43 @@ const { width } = Dimensions.get('window');
 
 const CATEGORIES = ['Todas', 'Desayuno', 'Almuerzo', 'Cena', 'Snack', 'Post-entreno'];
 
-const ALL_RECIPES = [
-  { id: 'bowl-pollo', image: require('../../../assets/pancakes.png'), name: 'Bowl Proteico de Pollo', category: 'Almuerzo', protein: 48, calories: 520, time: '20 min', tag: 'Alto en proteína', tagColor: ACCENT },
-  { id: 'pancakes-avena', image: require('../../../assets/pancakes.png'), name: 'Pancakes de Avena Fit', category: 'Desayuno', protein: 28, calories: 380, time: '15 min', tag: 'Sin azúcar', tagColor: PURPLE },
-  { id: 'wrap-atun', image: require('../../../assets/wrap.png'), name: 'Wrap de Atún y Aguacate', category: 'Almuerzo', protein: 35, calories: 420, time: '10 min', tag: 'Omega-3', tagColor: CYAN },
-  { id: 'batido-post-entreno', image: require('../../../assets/pancakes.png'), name: 'Batido Post-Entreno', category: 'Post-entreno', protein: 38, calories: 420, time: '5 min', tag: 'Recuperación', tagColor: ORANGE },
-  { id: 'salmon-quinoa', image: require('../../../assets/pancakes.png'), name: 'Salmón con Quinoa', category: 'Cena', protein: 42, calories: 580, time: '25 min', tag: 'Omega-3', tagColor: CYAN },
-  { id: 'tacos-fit', image: require('../../../assets/wrap.png'), name: 'Tacos de Pollo Fit', category: 'Almuerzo', protein: 40, calories: 480, time: '25 min', tag: 'Sin gluten', tagColor: ACCENT },
-  { id: 'pasta-proteica', image: require('../../../assets/pancakes.png'), name: 'Pasta Proteica con Pavo', category: 'Almuerzo', protein: 45, calories: 560, time: '20 min', tag: 'Pre-entreno', tagColor: ORANGE },
-  { id: 'ensalada-cesar-fit', image: require('../../../assets/wrap.png'), name: 'Ensalada César Fit', category: 'Almuerzo', protein: 38, calories: 420, time: '15 min', tag: 'Bajo en carbos', tagColor: PINK },
-  { id: 'arroz-pollo-curry', image: require('../../../assets/pancakes.png'), name: 'Arroz con Pollo al Curry', category: 'Almuerzo', protein: 42, calories: 540, time: '30 min', tag: 'Antiinflamatorio', tagColor: PURPLE },
-  { id: 'overnight-oats', image: require('../../../assets/pancakes.png'), name: 'Overnight Oats Proteicos', category: 'Desayuno', protein: 35, calories: 450, time: '5 min', tag: 'Meal prep', tagColor: ACCENT },
-  { id: 'revuelto-claras', image: require('../../../assets/pancakes.png'), name: 'Revuelto de Claras', category: 'Desayuno', protein: 32, calories: 280, time: '10 min', tag: 'Bajo en carbos', tagColor: PINK },
-  { id: 'yogur-proteico', image: require('../../../assets/pancakes.png'), name: 'Yogur Proteico con Granola', category: 'Snack', protein: 24, calories: 320, time: '5 min', tag: 'Rápido', tagColor: ORANGE },
-];
-
 export default function AllRecipesScreen() {
   const [activeCategory, setActiveCategory] = useState('Todas');
   const [searchQuery, setSearchQuery] = useState('');
-const [recipes, setRecipes] = useState([]);
-const [loading, setLoading] = useState(true);
+  const [recipes, setRecipes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-useEffect(() => {
-  loadRecipes();
-}, []);
+  useEffect(() => {
+    loadRecipes();
+  }, []);
 
-async function loadRecipes() {
-  try {
-    const { data, error } = await supabase
-      .from('recipes_ia')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    if (data) {
-      setRecipes(data.map(r => ({
-        id: r.id,
-        image: require('../../../assets/pancakes.png'),
-        name: r.name,
-        category: r.category,
-        protein: r.protein,
-        calories: r.calories,
-        time: r.time,
-        tag: r.tags?.[0] || r.category,
-        tagColor: '#C0FF3E',
-      })));
+  async function loadRecipes() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('recipes_ia')
+        .select('id, name, category, protein, calories, time, tags, image_url, subtitle')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setRecipes(data || []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('[AllRecipes] Error cargando recetas:', err);
-  } finally {
-    setLoading(false);
   }
-}
-  const recipeSource = recipes.length > 0 ? recipes : ALL_RECIPES;
-  const filteredRecipes = recipeSource.filter(r => {
+
+  function recipeImage(recipe) {
+    if (recipe.image_url && typeof recipe.image_url === 'string' && recipe.image_url.startsWith('http')) {
+      return { uri: recipe.image_url };
+    }
+    return require('../../../assets/pancakes.png');
+  }
+
+  const filteredRecipes = recipes.filter(r => {
     const matchCategory = activeCategory === 'Todas' || r.category === activeCategory;
     const matchSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCategory && matchSearch;
@@ -127,52 +111,66 @@ async function loadRecipes() {
 
       {/* RECIPES LIST */}
       <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={s.resultsCount}>
-          {filteredRecipes.length} {filteredRecipes.length === 1 ? 'receta' : 'recetas'}
-        </Text>
-        
-        {filteredRecipes.map((recipe) => (
-          <TouchableOpacity
-            key={recipe.id}
-            style={s.recipeCard}
-            onPress={() => router.push(`/explore/recipe-detail?id=${recipe.id}`)}
-            activeOpacity={0.8}
-          >
-            <Image source={recipe.image} style={s.recipeImage} />
-            <View style={s.recipeContent}>
-              <View style={s.recipeHeader}>
-                <View style={[s.recipeTag, { backgroundColor: recipe.tagColor + '20', borderColor: recipe.tagColor + '50' }]}>
-                  <Text style={[s.recipeTagText, { color: recipe.tagColor }]}>{recipe.tag}</Text>
-                </View>
-                <View style={s.recipeTime}>
-                  <Ionicons name="time-outline" size={12} color={T3} />
-                  <Text style={s.recipeTimeText}>{recipe.time}</Text>
-                </View>
-              </View>
-              <Text style={s.recipeName}>{recipe.name}</Text>
-              <View style={s.recipeMacros}>
-                <View style={s.recipeMacroItem}>
-                  <Ionicons name="flame" size={12} color={ORANGE} />
-                  <Text style={s.recipeMacroText}>{recipe.calories} kcal</Text>
-                </View>
-                <View style={s.recipeMacroItem}>
-                  <Ionicons name="barbell" size={12} color={ACCENT} />
-                  <Text style={s.recipeMacroText}>{recipe.protein}g prot</Text>
-                </View>
-              </View>
-            </View>
-            <View style={s.recipeArrow}>
-              <Ionicons name="chevron-forward" size={20} color={T3} />
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {filteredRecipes.length === 0 && (
+        {loading ? (
+          <ActivityIndicator size="large" color={ACCENT} style={{ marginTop: 40 }} />
+        ) : error ? (
           <View style={s.emptyState}>
-            <Ionicons name="restaurant-outline" size={48} color={T3} />
-            <Text style={s.emptyTitle}>Sin resultados</Text>
-            <Text style={s.emptyText}>Prueba con otra categoría o búsqueda</Text>
+            <Ionicons name="cloud-offline-outline" size={48} color={T3} />
+            <Text style={s.emptyTitle}>No se pudieron cargar las recetas</Text>
+            <TouchableOpacity style={s.retryBtn} onPress={loadRecipes} activeOpacity={0.8}>
+              <Text style={s.retryText}>Reintentar</Text>
+            </TouchableOpacity>
           </View>
+        ) : (
+          <>
+            <Text style={s.resultsCount}>
+              {filteredRecipes.length} {filteredRecipes.length === 1 ? 'receta' : 'recetas'}
+            </Text>
+
+            {filteredRecipes.map((recipe) => (
+              <TouchableOpacity
+                key={recipe.id}
+                style={s.recipeCard}
+                onPress={() => router.push(`/explore/recipe-detail?id=${recipe.id}`)}
+                activeOpacity={0.8}
+              >
+                <Image source={recipeImage(recipe)} style={s.recipeImage} />
+                <View style={s.recipeContent}>
+                  <View style={s.recipeHeader}>
+                    <View style={[s.recipeTag, { backgroundColor: ACCENT + '20', borderColor: ACCENT + '50' }]}>
+                      <Text style={[s.recipeTagText, { color: ACCENT }]}>{recipe.tags?.[0] || recipe.category}</Text>
+                    </View>
+                    <View style={s.recipeTime}>
+                      <Ionicons name="time-outline" size={12} color={T3} />
+                      <Text style={s.recipeTimeText}>{recipe.time}</Text>
+                    </View>
+                  </View>
+                  <Text style={s.recipeName}>{recipe.name}</Text>
+                  <View style={s.recipeMacros}>
+                    <View style={s.recipeMacroItem}>
+                      <Ionicons name="flame" size={12} color={ORANGE} />
+                      <Text style={s.recipeMacroText}>{recipe.calories} kcal</Text>
+                    </View>
+                    <View style={s.recipeMacroItem}>
+                      <Ionicons name="barbell" size={12} color={ACCENT} />
+                      <Text style={s.recipeMacroText}>{recipe.protein}g prot</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={s.recipeArrow}>
+                  <Ionicons name="chevron-forward" size={20} color={T3} />
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {filteredRecipes.length === 0 && (
+              <View style={s.emptyState}>
+                <Ionicons name="restaurant-outline" size={48} color={T3} />
+                <Text style={s.emptyTitle}>Sin resultados</Text>
+                <Text style={s.emptyText}>Prueba con otra categoría o búsqueda</Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -217,4 +215,6 @@ const s = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: T1, marginTop: 8 },
   emptyText: { fontSize: 12, color: T2 },
+  retryBtn: { marginTop: 8, backgroundColor: ACCENT, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
+  retryText: { fontSize: 13, fontWeight: '800', color: BG },
 });

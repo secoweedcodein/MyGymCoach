@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from '../../../components/BottomTabBar';
@@ -13,13 +13,21 @@ const T2 = '#A0A0A0';
 const T3 = '#555555';
 
 const OPTIONS = [
-  { icon: '🏋️', label: 'Rutina', desc: 'Crea una nueva rutina', color: '#C0FF3E' },
-  { icon: '🍳', label: 'Receta', desc: 'Comparte una receta', color: '#FF9500' },
-  { icon: '📚', label: 'Artículo', desc: 'Escribe un artículo', color: '#3E8EFF' },
-  { icon: '⭐', label: 'Ejercicio', desc: 'Añade un ejercicio', color: '#A78BFA' },
+  { icon: '🏋️', label: 'Rutina', desc: 'Crea una nueva rutina', color: '#C0FF3E', action: 'soon' },
+  { icon: '🍳', label: 'Receta', desc: 'Comparte una receta', color: '#FF9500', action: 'recipe' },
+  { icon: '📚', label: 'Artículo', desc: 'Escribe un artículo', color: '#3E8EFF', action: 'soon' },
+  { icon: '⭐', label: 'Ejercicio', desc: 'Añade un ejercicio', color: '#A78BFA', action: 'soon' },
 ];
 
 export default function CreateContentScreen() {
+  function handlePress(opt) {
+    if (opt.action === 'recipe') {
+      router.push('/explore/create-user-recipe');
+    } else {
+      Alert.alert('Próximamente', `La opción "${opt.label}" llegará en una próxima actualización.`);
+    }
+  }
+
   return (
     <View style={s.container}>
       <View style={s.header}>
@@ -34,7 +42,7 @@ export default function CreateContentScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.list}>
         {OPTIONS.map((opt, idx) => (
-          <TouchableOpacity key={idx} style={s.optionCard} activeOpacity={0.85}>
+          <TouchableOpacity key={idx} style={s.optionCard} activeOpacity={0.85} onPress={() => handlePress(opt)}>
             <View style={[s.optionIconWrap, { backgroundColor: opt.color + '20' }]}>
               <Text style={s.optionIcon}>{opt.icon}</Text>
             </View>

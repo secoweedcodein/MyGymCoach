@@ -67,49 +67,6 @@ const CATEGORIES = [
   { id: 'exercise',  label: '⭐ Ejercicios' },
 ];
 
-const TRENDING = [
-  { id: 'abs-30d', type: 'routine', image: require('../../assets/wmremove-transformed.png'), title: 'Reto 30 días Abs', level: 'Intermedio', rating: 4.8, users: '12.3k', badge: 'popular' },
-  { id: 'hipertrofia', type: 'routine', image: require('../../assets/hiperftrofia.png'), title: 'Hipertrofia Avanzada', level: 'Avanzado', rating: 8.1, users: '12.3k' },
-  { id: 'funcional', type: 'routine', image: require('../../assets/funcional.png'), title: 'Fuerza Funcional', level: 'Principiante', rating: 4.6, users: '5.4k', badge: 'nuevo' },
-];
-
-const ROUTINES = [
-  { id: 'upper', image: require('../../assets/upper.png'), title: 'Hipertrofia Upper', level: 'Intermedio', rating: 4.7, users: '12.3k', badge: 'popular' },
-  { id: 'ppl', image: require('../../assets/PPL.png'), title: 'Push Pull Legs', level: 'Intermedio', rating: 4.8, users: '9.7k', badge: 'verificado' },
-  { id: 'fullbody', image: require('../../assets/fullbody.png'), title: 'Full Body 3 Días', level: 'Principiante', rating: 4.5, users: '6.2k' },
-  { id: '5x5', image: require('../../assets/5x5.png'), title: 'Fuerza 5x5', level: 'Avanzado', rating: 4.9, users: '4.8k', badge: 'ia' },
-];
-
-const RECIPES_IA = [
-  { id: 'bowl-pollo', image: require('../../assets/bowlpollo.png'), name: 'Bowl proteico de pollo', protein: 48, calories: 520, time: '20 min', author: 'MyGymCoach IA' },
-  { id: 'pancakes-avena', image: require('../../assets/pancakes.png'), name: 'Pancakes de avena fit', protein: 28, calories: 380, time: '15 min', author: 'MyGymCoach IA' },
-  { id: 'wrap-atun', image: require('../../assets/wrap.png'), name: 'Wrap de atún y aguacate', protein: 35, calories: 420, time: '10 min', author: 'MyGymCoach IA' },
-];
-
-const RECIPES_USERS = [
-  { id: 'ru1', image: 'https://picsum.photos/seed/urecipe1/400/300', name: 'Ensalada de quinoa', protein: 22, calories: 320, time: '12 min', author: '@lucia.fit' },
-  { id: 'ru2', image: 'https://picsum.photos/seed/urecipe2/400/300', name: 'Tacos de carne magra', protein: 38, calories: 460, time: '20 min', author: '@carlos_gym' },
-];
-
-const ARTICLES = [
-  { id: 'suplementos', image: require('../../assets/suples.png'), title: 'Guía completa de suplementos', category: 'Nutrición', readTime: '6 min' },
-  { id: 'sentadilla', image: require('../../assets/SENTADILLA.png'), title: 'Técnica correcta de sentadilla', category: 'Técnica', readTime: '4 min' },
-  { id: 'estancamiento', image: require('../../assets/estancamiento.png'), title: 'Cómo romper un estancamiento', category: 'Entrenamiento', readTime: '8 min' },
-];
-
-const CHALLENGES = [
-  { id: 'c1', title: '10.000 pasos al día', participants: '4.2k', daysLeft: 12, progress: 0.4 },
-  { id: 'c2', title: 'Sin azúcar 7 días', participants: '2.8k', daysLeft: 3, progress: 0.7 },
-  { id: 'c3', title: '100 flexiones diarias', participants: '6.1k', daysLeft: 20, progress: 0.15 },
-];
-
-const EXERCISE_OF_DAY = {
-  image: require('../../assets/dominadas.png'),
-  name: 'Dominadas lastradas',
-  muscle: 'Espalda y bíceps',
-  difficulty: 'Avanzado',
-};
-
 export default function ExploreScreen() {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +75,9 @@ export default function ExploreScreen() {
   const sectionY = useRef({});
   const categoryBarRef = useRef(null);
   const [trends, setTrends] = useState([]);
+  const [publicRoutines, setPublicRoutines] = useState([]);
+  const [iaRecipes, setIaRecipes] = useState([]);
+  const [officialChallenges, setOfficialChallenges] = useState([]);
   const [featured, setFeatured] = useState({
     hero: { title: '30 días de hipertrofia', subtitle: 'Reto del mes', image_id: '30dias', route: '/explore/challenge-detail', participants: '12.548' },
     exercise: { title: 'Dominadas lastradas', subtitle: 'Espalda y bíceps', image_id: 'dominadas', route: '/explore/exercise-day' },
@@ -128,7 +88,8 @@ export default function ExploreScreen() {
   async function loadArticles() {
     const { data, error } = await supabase
       .from('articles')
-      .select('*')
+      .select('id, title, category, read_time, image_id, image_url')
+      .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(3);
 
@@ -136,25 +97,28 @@ export default function ExploreScreen() {
     if (data) {
       setArticles(data.map(a => ({
         id: a.id,
-        image: require('../../assets/suples.png'), // Placeholder
+        image: a.image_url || require('../../assets/suples.png'),
         title: a.title,
         category: a.category,
-        readTime: a.read_time,
+        readTime: a.read_time ? `${a.read_time} min` : '5 min',
       })));
     }
   }
 
   async function loadFeatured() {
-    const { data, error } = await supabase.from('featured_content').select('*');
+    const { data, error } = await supabase.from('featured_content').select('id, title, subtitle, image_id, image_url, route, target_id, participants');
     if (error) throw error;
     if (!data) return;
-    
+
     // ✅ CAMBIO: Usar los nuevos IDs que definimos en el admin
     const hero = data.find(d => d.id === 'reto_mes');
     const ex = data.find(d => d.id === 'ejercicio_dia');
-    
+
     setFeatured(prev => ({
-      hero: hero || prev.hero,
+      hero: {
+        ...(hero || prev.hero),
+        target_id: hero?.target_id || prev.hero?.target_id,
+      },
       exercise: ex || prev.exercise,
     }));
   }
@@ -162,19 +126,74 @@ export default function ExploreScreen() {
   async function loadTrends() {
     const { data, error } = await supabase
       .from('trends')
-      .select('*')
+      .select('id, title, level, rating, users, badge, image_id, image_url, route')
       .eq('is_active', true)
       .order('position', { ascending: true });
     if (error) throw error;
     if (data) setTrends(data);
   }
 
+  async function loadPublicRoutines() {
+    const { data, error } = await supabase
+      .from('public_routines')
+      .select('id, name, level, image_id, image_url, route, badge, rating_avg, views_count')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(4);
+    if (error) throw error;
+    if (data) {
+      setPublicRoutines(data.map(r => ({
+        id: r.id,
+        title: r.name,
+        level: r.level,
+        rating: r.rating_avg ?? 0,
+        users: r.views_count ? `${r.views_count}` : '0',
+        badge: r.badge,
+        image_id: r.image_id,
+        image: r.image_url,
+        route: r.route || `/explore/public-routine-detail?id=${r.id}`,
+      })));
+    }
+  }
+
+  async function loadIaRecipes() {
+    const { data, error } = await supabase
+      .from('recipes_ia')
+      .select('id, name, subtitle, protein, calories, time, image_url')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(4);
+    if (error) throw error;
+    if (data) {
+      setIaRecipes(data.map(r => ({
+        id: r.id,
+        name: r.name,
+        author: r.subtitle || 'MyGymCoach IA',
+        protein: r.protein,
+        calories: r.calories,
+        time: r.time,
+        image: r.image_url || require('../../assets/pancakes.png'),
+      })));
+    }
+  }
+
+  async function loadOfficialChallenges() {
+    const { data, error } = await supabase
+      .from('challenges')
+      .select('id, name, subtitle, duration_days, participants')
+      .eq('is_official', true)
+      .order('created_at', { ascending: false })
+      .limit(3);
+    if (error) throw error;
+    if (data) setOfficialChallenges(data);
+  }
+
   // Cargar las últimas 2 recetas de usuario desde Supabase
   async function loadUserRecipes() {
     const { data, error } = await supabase
       .from('user_recipes')
-      .select('*')
-      .eq('status', 'approved')
+      .select('id, recipe_name, author_name, protein, calories, time, image_url')
+      .in('status', ['approved', 'published'])
       .order('created_at', { ascending: false })
       .limit(2);
 
@@ -183,11 +202,11 @@ export default function ExploreScreen() {
       setUserRecipes(data.map(r => ({
         id: r.id,
         name: r.recipe_name,
-        author: r.author_name,
+        author: r.author_name || 'Comunidad',
         protein: r.protein,
         calories: r.calories,
         time: r.time,
-        image: 'https://picsum.photos/seed/recipe/400/300', // Imagen placeholder
+        image: r.image_url || 'https://picsum.photos/seed/recipe/400/300',
       })));
     }
   }
@@ -196,7 +215,15 @@ export default function ExploreScreen() {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([loadArticles(), loadTrends(), loadUserRecipes(), loadFeatured()]);
+      await Promise.all([
+        loadArticles(),
+        loadTrends(),
+        loadPublicRoutines(),
+        loadIaRecipes(),
+        loadOfficialChallenges(),
+        loadUserRecipes(),
+        loadFeatured(),
+      ]);
     } catch (err) {
       console.error('[Explore] Error al cargar secciones:', err);
       setError(err);
@@ -279,8 +306,8 @@ export default function ExploreScreen() {
         <View onLayout={handleSectionLayout('routines')}>
           <FadeInUp delay={100}>
             <Section title="🏋️ Rutinas" description="Las más populares esta semana" onSeeAll={() => router.push('/explore/routines')}>
-              {loading ? <SkeletonRow /> : (
-                <HorizontalList data={ROUTINES} renderItem={(item) => (
+              {loading ? <SkeletonRow /> : publicRoutines.length === 0 ? <EmptyState onRefresh={refresh} /> : (
+                <HorizontalList data={publicRoutines} renderItem={(item) => (
                   <ContentCard key={item.id} item={item} />
                 )} />
               )}
@@ -291,8 +318,8 @@ export default function ExploreScreen() {
         <View onLayout={handleSectionLayout('recipes')}>
           <FadeInUp delay={140}>
             <Section title="🍳 Recetas IA" description="Generadas según tus objetivos" onSeeAll={() => router.push('/explore/recipes-ai')}>
-              {loading ? <SkeletonRow /> : (
-                <HorizontalList data={RECIPES_IA} renderItem={(item) => <RecipeCard key={item.id} item={item} />} />
+              {loading ? <SkeletonRow /> : iaRecipes.length === 0 ? <EmptyState onRefresh={refresh} /> : (
+                <HorizontalList data={iaRecipes} renderItem={(item) => <RecipeCard key={item.id} item={item} />} />
               )}
             </Section>
           </FadeInUp>
@@ -328,10 +355,21 @@ export default function ExploreScreen() {
         <View onLayout={handleSectionLayout('challenges')}>
           <FadeInUp delay={220}>
             <Section title="🎯 Retos" description="Únete y compite con la comunidad" onSeeAll={() => router.push('/explore/challenge')}>
-              {loading ? <SkeletonChallenge /> : (
+              {loading ? <SkeletonChallenge /> : officialChallenges.length === 0 ? (
+                <EmptyState onRefresh={refresh} />
+              ) : (
                 <View style={{ paddingHorizontal: 20, gap: 12 }}>
-                  {CHALLENGES.map((c) => (
-                    <ChallengeCard key={c.id} item={c} onPress={() => router.push(`/explore/challenge-detail?id=${c.id}`)} />
+                  {officialChallenges.map((c) => (
+                    <ChallengeCard
+                      key={c.id}
+                      item={{
+                        id: c.id,
+                        title: c.name,
+                        participants: String(c.participants ?? '0'),
+                        daysLeft: c.duration_days,
+                      }}
+                      onPress={() => router.push(`/explore/challenge-detail?id=${c.id}`)}
+                    />
                   ))}
                 </View>
               )}
@@ -649,19 +687,20 @@ function ArticleCard({ item }) {
 }
 
 function ChallengeCard({ item, onPress }) {
+  const fillPct = Math.max(0, Math.min(100, Math.round((item.progress || 0) * 100)));
   return (
     <TouchableOpacity style={s.challengeCard} activeOpacity={0.85} onPress={onPress}>
       <View style={s.challengeIconWrap}>
         <Ionicons name="trophy" size={20} color={ACCENT} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={s.challengeTitle}>{item.title}</Text>
+        <Text style={s.challengeTitle} numberOfLines={1}>{item.title}</Text>
         <View style={s.challengeTrack}>
-          <View style={[s.challengeFill, { width: `${Math.round(item.progress * 100)}%` }]} />
+          <View style={[s.challengeFill, { width: `${fillPct}%` }]} />
         </View>
         <View style={s.challengeMetaRow}>
           <Text style={s.challengeMetaText}>{item.participants} participantes</Text>
-          <Text style={s.challengeMetaText}>{item.daysLeft} días restantes</Text>
+          <Text style={s.challengeMetaText}>{item.daysLeft} días</Text>
         </View>
       </View>
     </TouchableOpacity>

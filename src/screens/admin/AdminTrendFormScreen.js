@@ -282,6 +282,7 @@ async function loadTrend() {
         session_time: challengeData.session_time,
         image_id: form.image_id,
         status: 'active',
+        is_official: true,
         exercise_ids: [],
         objectives: challengeData.objectives.filter(o => o.trim()),
         phases: challengeData.phases.filter(p => p.title.trim()),
@@ -314,15 +315,17 @@ async function loadTrend() {
 
   async function createArticle() {
     if (!articleData.author.trim() || !articleData.intro.trim()) { Alert.alert('Error', 'Autor e intro obligatorios'); return null; }
-    const categoryColors = { 'Nutrición': '#C0FF3E', 'Técnica': '#3EE5FF', 'Entrenamiento': '#FF6B3E', 'Recuperación': '#8B7CFF' };
     const { data, error } = await supabase.from('articles').insert({
-      title: form.title.trim(), category: articleData.category,
-      category_color: categoryColors[articleData.category], read_time: '5 min',
-      author: articleData.author.trim(),
-      published_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }),
-      intro: articleData.intro.trim(),
-      sections: [{ title: 'Contenido', content: [{ subtitle: '', text: articleData.content }] }],
-      key_takeaways: [],
+      title: form.title.trim(),
+      category: articleData.category,
+      content: [
+        `# ${form.title.trim()}`,
+        articleData.intro.trim(),
+        articleData.content.trim(),
+      ].filter(Boolean).join('\n\n'),
+      read_time: 5,
+      image_id: form.image_id || 'suples',
+      is_active: true,
     }).select().single();
     if (error) { Alert.alert('Error', error.message); return null; }
     return `/explore/article-detail?id=${data.id}`;

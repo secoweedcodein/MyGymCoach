@@ -1,10 +1,11 @@
 // src/screens/admin/AdminDashboardScreen.js
 import React from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../../lib/supabase';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -80,13 +81,28 @@ const ADMIN_OPTIONS = [
 ];
 
 export default function AdminDashboardScreen() {
-  function handleLogout() {
+  const [signingOut, setSigningOut] = React.useState(false);
+
+  async function handleLogout() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.replace('/auth');
+    } catch (err) {
+      Alert.alert('Error', err.message || 'No se pudo cerrar la sesión');
+      setSigningOut(false);
+    }
+  }
+
+  function confirmLogout() {
     Alert.alert(
       'Salir del panel',
       '¿Estás seguro que quieres salir?',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Salir', style: 'destructive', onPress: () => router.replace('/home') },
+        { text: 'Salir', style: 'destructive', onPress: handleLogout },
       ]
     );
   }
@@ -103,8 +119,12 @@ export default function AdminDashboardScreen() {
           <Text style={s.headerTitle}>Panel de Control</Text>
           <Text style={s.headerSubtitle}>Gestiona el contenido de la app</Text>
         </View>
-        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <Ionicons name="log-out-outline" size={20} color={RED} />
+        <TouchableOpacity style={s.logoutBtn} onPress={confirmLogout} activeOpacity={0.8}>
+          {signingOut ? (
+            <ActivityIndicator size="small" color={RED} />
+          ) : (
+            <Ionicons name="log-out-outline" size={20} color={RED} />
+          )}
         </TouchableOpacity>
       </View>
 

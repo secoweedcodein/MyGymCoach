@@ -1,13 +1,14 @@
 // src/screens/admin/AdminLoginScreen.js
 // Acceso al panel basado en rol (user_profiles.role = 'admin') de la cuenta autenticada.
 // El rol admin solo se asigna desde el SQL editor / service role (trigger prevent_role_escalation).
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
+import { requireAdminSession } from '../../../lib/adminAuth';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -19,6 +20,23 @@ const T3 = '#555555';
 
 export default function AdminLoginScreen() {
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // Si la sesión ya pertenece a un admin, entramos directo al panel.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await requireAdminSession();
+        if (active) router.replace('/admin/dashboard');
+      } catch {
+        // Sin sesión o sin rol: nos quedamos en el login.
+      } finally {
+        if (active) setChecking(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   async function handleLogin() {
     if (loading) return;
@@ -61,18 +79,22 @@ export default function AdminLoginScreen() {
           El acceso se valida con el rol de administrador de tu cuenta autenticada
         </Text>
 
-        <TouchableOpacity
-          style={[s.loginBtn, loading && s.loginBtnDisabled]}
-          onPress={handleLogin}
-          disabled={loading}
-          activeOpacity={0.85}
-        >
-          {loading ? (
-            <ActivityIndicator color={BG} />
-          ) : (
-            <Text style={s.loginBtnText}>Verificar acceso</Text>
-          )}
-        </TouchableOpacity>
+        {checking ? (
+          <ActivityIndicator color={ACCENT} size="large" style={{ marginTop: 12 }} />
+        ) : (
+          <TouchableOpacity
+            style={[s.loginBtn, loading && s.loginBtnDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <ActivityIndicator color={BG} />
+            ) : (
+              <Text style={s.loginBtnText}>Verificar acceso</Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={s.backBtn}

@@ -127,7 +127,6 @@ export default function HipertrofiaChallengeScreen() {
             is_challenge: true,
             challenge_type: 'hipertrofia_avanzada', // ⚠️ Tipo diferente
             challenge_start_date: todayKey(),
-            challenge_duration_days: 30,
             description: CHALLENGE_DATA.description,
             exercise_ids: [],
             created_at: new Date().toISOString(),

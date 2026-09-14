@@ -122,7 +122,6 @@ export default function ChallengeDetailScreen() {
         is_challenge: true,
         challenge_type: 'custom',
         challenge_start_date: todayKey(),
-        challenge_duration_days: challenge.duration_days || 30,
         description: challenge.description || '',
         exercise_ids: [],
         created_at: new Date().toISOString(),

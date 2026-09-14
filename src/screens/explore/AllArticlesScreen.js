@@ -1,15 +1,13 @@
 // src/screens/explore/AllArticlesScreen.js
-import React, { useState, useEffect } from 'react'; // 👉 Agregado useEffect
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, TextInput, ActivityIndicator
+  Image, TextInput, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
-
-// 👉 IMPORTANTE: Asegúrate de importar tu cliente de Supabase (ajusta la ruta según tu proyecto)
-import { supabase } from '../../../lib/supabase'; 
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -18,71 +16,52 @@ const BORDER = '#FFFFFF0D';
 const T1 = '#FFFFFF';
 const T2 = '#A0A0A0';
 const T3 = '#555555';
-const PURPLE = '#8B7CFF';
-const ORANGE = '#FF6B3E';
-const CYAN = '#3EE5FF';
-const PINK = '#FF3EAA';
 
 const CATEGORIES = ['Todas', 'Nutrición', 'Técnica', 'Entrenamiento', 'Recuperación'];
 
-// Puedes borrar el arreglo estático ALL_ARTICLES porque ya no lo usarás.
+const FALLBACK_IMAGE = require('../../../assets/suples.png');
 
 export default function AllArticlesScreen() {
-    
   const [activeCategory, setActiveCategory] = useState('Todas');
   const [searchQuery, setSearchQuery] = useState('');
-
-  // 👇 --- AQUÍ AGREGAMOS TUS NUEVOS ESTADOS Y EL USEEFFECT --- 
-
-// ✅ AGREGA ESTO (dentro del componente):
-const [allArticles, setAllArticles] = useState([]);
-const [loadingArticles, setLoadingArticles] = useState(true);
-
-useEffect(() => {
-  async function loadAllArticles() {
-    const { data } = await supabase
-      .from('articles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (data) {
-      setAllArticles(data.map(a => ({
-        id: a.id,
-        image: require('../../../assets/suples.png'),
-        title: a.title,
-        category: a.category,
-        categoryColor: a.category_color || ACCENT,
-        readTime: a.read_time,
-        author: a.author,
-      })));
-    }
-    setLoadingArticles(false);
-  }
-  loadAllArticles();
-}, []);
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadArticles();
   }, []);
 
   async function loadArticles() {
-    const { data } = await supabase
-      .from('articles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (data) setArticles(data);
-    setLoading(false);
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('id, title, category, read_time, image_url, views_count')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setArticles(data || []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
   }
-  // 👆 -------------------------------------------------------- 👆
 
-  // 👇 --- AQUÍ ACTUALIZAMOS EL FILTRADO PARA USAR 'articles' EN LUGAR DE 'ALL_ARTICLES' --- 👇
-const filteredArticles = allArticles.filter(a => {
-  const matchCategory = activeCategory === 'Todas' || a.category === activeCategory;
-  const matchSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase());
-  return matchCategory && matchSearch;
-});
+  function articleImage(article) {
+    if (article.image_url && typeof article.image_url === 'string' && article.image_url.startsWith('http')) {
+      return { uri: article.image_url };
+    }
+    return FALLBACK_IMAGE;
+  }
+
+  const filteredArticles = articles.filter(a => {
+    const matchCategory = activeCategory === 'Todas' || a.category === activeCategory;
+    const matchSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCategory && matchSearch;
+  });
 
   return (
     <View style={s.container}>
@@ -92,7 +71,7 @@ const filteredArticles = allArticles.filter(a => {
           <Ionicons name="arrow-back" size={24} color={T1} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={s.headerTitle}>📚 Aprende</Text>
+          <Text style={s.headerTitle}>Aprende</Text>
           <Text style={s.headerSubtitle}>Artículos basados en ciencia</Text>
         </View>
       </View>
@@ -127,10 +106,16 @@ const filteredArticles = allArticles.filter(a => {
 
       {/* ARTICLES LIST */}
       <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Pequeña mejora: Mostrar un indicador de carga mientras se obtienen los datos */}
         {loading ? (
           <ActivityIndicator size="large" color={ACCENT} style={{ marginTop: 40 }} />
+        ) : error ? (
+          <View style={s.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={48} color={T3} />
+            <Text style={s.emptyTitle}>No se pudieron cargar los artículos</Text>
+            <TouchableOpacity style={s.retryBtn} onPress={loadArticles} activeOpacity={0.8}>
+              <Text style={s.retryText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <>
             <Text style={s.resultsCount}>
@@ -144,22 +129,21 @@ const filteredArticles = allArticles.filter(a => {
                 onPress={() => router.push(`/explore/article-detail?id=${article.id}`)}
                 activeOpacity={0.8}
               >
-                {/* Nota: si las imágenes de Supabase vienen como URL, deberás usar {uri: article.image} en lugar de require */}
-                <Image source={typeof article.image === 'string' ? { uri: article.image } : article.image} style={s.articleImage} />
+                <Image source={articleImage(article)} style={s.articleImage} />
                 <View style={s.articleContent}>
                   <View style={s.articleHeader}>
-                    <View style={[s.categoryBadge, { backgroundColor: (article.categoryColor || ACCENT) + '22', borderColor: (article.categoryColor || ACCENT) + '55' }]}>
-                      <Text style={[s.categoryText, { color: article.categoryColor || ACCENT }]}>{article.category}</Text>
+                    <View style={[s.categoryBadge, { backgroundColor: ACCENT + '22', borderColor: ACCENT + '55' }]}>
+                      <Text style={[s.categoryText, { color: ACCENT }]}>{article.category || 'General'}</Text>
                     </View>
                     <View style={s.readTimeBadge}>
                       <Ionicons name="time-outline" size={12} color={T3} />
-                      <Text style={s.readTimeText}>{article.readTime || '5 min'}</Text>
+                      <Text style={s.readTimeText}>{article.read_time ? `${article.read_time} min` : '5 min'}</Text>
                     </View>
                   </View>
                   <Text style={s.articleTitle} numberOfLines={2}>{article.title}</Text>
                   <View style={s.authorRow}>
-                    <Ionicons name="person-circle" size={12} color={T3} />
-                    <Text style={s.authorText}>{article.author}</Text>
+                    <Ionicons name="eye-outline" size={12} color={T3} />
+                    <Text style={s.authorText}>{article.views_count || 0} visitas</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -214,4 +198,6 @@ const s = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: T1, marginTop: 8 },
   emptyText: { fontSize: 12, color: T2 },
+  retryBtn: { marginTop: 8, backgroundColor: ACCENT, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
+  retryText: { fontSize: 13, fontWeight: '800', color: BG },
 });

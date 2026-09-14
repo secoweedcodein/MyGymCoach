@@ -109,13 +109,7 @@ export default function UserRecipeDetailScreen() {
         .insert({
           user_id: user.id,
           recipe_id: `user-${id}`,
-          recipe_name: recipe.name,
-          recipe_category: 'Comunidad',
-          protein: recipe.macros.protein,
-          calories: recipe.macros.calories,
-          carbs: recipe.macros.carbs,
-          fat: recipe.macros.fat,
-          time: recipe.time,
+          recipe_type: 'user',
         });
 
       if (error) Alert.alert('Error', error.message);

@@ -97,7 +97,6 @@ export default function AbsChallengeScreen() {
             is_challenge: true,
             challenge_type: 'abs',
             challenge_start_date: todayKey(),
-            challenge_duration_days: 30,
             description: CHALLENGE_DATA.description,
             exercise_ids: [18, 126, 95, 96, 114, 127], 
             created_at: new Date().toISOString(),
