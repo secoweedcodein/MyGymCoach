@@ -4,13 +4,11 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase.js';
 import { colors, radius, spacing } from '../../lib/theme.js';
 import { useAlert } from '../context/AlertContext.js';
 
 export default function AuthScreen() {
-  const router = useRouter();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin]   = useState(true);
@@ -27,14 +25,12 @@ export default function AuthScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         showAlert('Éxito', 'Sesión iniciada');
-        router.replace('/home');
+        // Navegación reactiva al estado global (AuthProvider)
       } else {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         showAlert('¡Listo!', 'Revisa tu email para confirmar la cuenta.');
-        setTimeout(() => {
-          router.replace('/onboarding');
-        }, 1500);
+        // Navegación reactiva al estado global (AuthProvider)
       }
     } catch (err) {
       showAlert('Error', err.message);

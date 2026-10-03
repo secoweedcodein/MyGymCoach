@@ -89,7 +89,7 @@ export default function AdminDashboardScreen() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      router.replace('/auth');
+      // Navegación reactiva
     } catch (err) {
       Alert.alert('Error', err.message || 'No se pudo cerrar la sesión');
       setSigningOut(false);

@@ -216,10 +216,11 @@ export default function HomeScreen() {
     return () => clearTimeout(timeout);
   }, [tapCount]);
 
+  const { user } = require('../hooks/useAuth').useAuth();
+
   useEffect(() => {
     const loadStreak = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         const data = await getUserStreak(user.id);
         setStreak(data);
@@ -229,7 +230,7 @@ export default function HomeScreen() {
     };
 
     loadStreak();
-  }, []);
+  }, [user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -241,7 +242,6 @@ export default function HomeScreen() {
     setRefreshing(true);
     setLoadError(null);
     try {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setRefreshing(false);
       return;

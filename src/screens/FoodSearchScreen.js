@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { searchFoods, increaseFoodUsage } from '../../services/foodService';
+import { searchFoods } from '../../services/foodService';
 import CreateFoodModal from '../../components/CreateFoodModal';
 import { useAlert } from "../context/AlertContext";
 
@@ -172,7 +172,6 @@ export default function FoodSearchScreen() {
       return;
     }
 
-    if (selectedFood.id) await increaseFoodUsage(selectedFood.id);
     router.back();
   }
 

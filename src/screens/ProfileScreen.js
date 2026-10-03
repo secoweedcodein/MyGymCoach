@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from "../context/AlertContext";
+import { useAuth } from '../hooks/useAuth';
 import BottomTabBar from '../../components/BottomTabBar';
 import { exportWorkoutHistory } from '../../services/exportService';
 import { WeightChart } from '../../components/WeightChart';
@@ -98,6 +99,7 @@ function calculateStreak(weekNutrition, goals) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function ProfileScreen() {
+  const { user } = useAuth();
   const [loading, setLoading]       = useState(true);
   const [profile, setProfile]       = useState(null);
   const [stats, setStats]           = useState({ workouts: 0, sets: 0, volume: 0 });
@@ -115,11 +117,10 @@ export default function ProfileScreen() {
   const [editActivity, setEditActivity] = useState('sedentary');
   const [saving, setSaving]         = useState(false);
 
-  useFocusEffect(useCallback(() => { loadAll(); }, []));
+  useFocusEffect(useCallback(() => { loadAll(); }, [user]));
 
   async function loadAll() {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
 
@@ -253,7 +254,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await supabase.auth.signOut();
-          router.replace('/home');
+          // Navegación reactiva al estado global
         },
       },
     ]);

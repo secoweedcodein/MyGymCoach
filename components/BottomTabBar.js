@@ -83,7 +83,7 @@ export default function BottomTabBar() {
             style={styles.tabItem}
             onPress={() => {
               if (!isActive) {
-                router.replace(tab.path);
+                router.push(tab.path);
               }
             }}
             activeOpacity={0.7}

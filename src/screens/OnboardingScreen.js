@@ -7,10 +7,10 @@ import {
   SafeAreaView,
   Animated,
 } from 'react-native';
-import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GOALS as GOAL_OPTIONS, ACTIVITY_LEVELS } from '../../lib/nutritionConstants';
+import { useAuth } from '../../hooks/useAuth';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -42,6 +42,7 @@ const DAYS_OPTIONS = [
 ];
 
 export default function OnboardingScreen() {
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [selectedDays, setSelectedDays] = useState(null);
@@ -83,7 +84,6 @@ export default function OnboardingScreen() {
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuario no autenticado');
 
       // Guardar en user_profiles
@@ -105,8 +105,7 @@ export default function OnboardingScreen() {
       // Marcar onboarding como completado
       await AsyncStorage.setItem('@mygymcoach_onboarding_completed', 'true');
 
-      // Navegar al home
-      router.replace('/home');
+      // Navegación reactiva al estado global
     } catch (error) {
       console.error('Error completing onboarding:', error);
       alert(`Error al guardar tu perfil: ${error.message || 'Intenta de nuevo.'}`);

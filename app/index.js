@@ -4,13 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { loadCustomExercises } from '../src/screens/data/exercises';
 import CustomSplashScreen from '../src/screens/SplashScreen';
-import { AlertProvider } from '../src/context/AlertContext';
-import { SheetProvider } from '../src/context/SheetContext';
+import { useAuth } from '../src/hooks/useAuth';
 
 export default function Index() {
-  const [loading, setLoading] = useState(true);
+  const { user, isLoading } = useAuth();
   const [animationFinished, setAnimationFinished] = useState(false);
-  const [initialRoute, setInitialRoute] = useState(null);
+  const [checkedOnboarding, setCheckedOnboarding] = useState(false);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
   // 1. Cargar ejercicios al iniciar
   useEffect(() => {
@@ -23,63 +23,46 @@ export default function Index() {
     return () => clearTimeout(timeout);
   }, []);
 
-  // 3. Verificar estado del usuario y escuchar cambios de sesión
+  // 3. Comprobar onboarding cuando hay usuario
   useEffect(() => {
-    checkUser();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        // Si inicia sesión, verificamos si ya hizo el onboarding
-        const onboardingCompleted = await AsyncStorage.getItem('@mygymcoach_onboarding_completed');
-        setInitialRoute(onboardingCompleted ? '/home' : '/onboarding');
-      } else {
-        setInitialRoute('/auth');
+    let mounted = true;
+    (async () => {
+      if (user) {
+        try {
+          const v = await AsyncStorage.getItem('@mygymcoach_onboarding_completed');
+          if (!mounted) return;
+          setOnboardingCompleted(v === 'true');
+        } catch {
+          if (!mounted) return;
+          setOnboardingCompleted(false);
+        }
       }
-    });
+      if (mounted) setCheckedOnboarding(true);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  // Función principal para verificar usuario y onboarding
-  async function checkUser() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        setInitialRoute('/auth');
-        return;
-      }
-
-      const onboardingCompleted = await AsyncStorage.getItem('@mygymcoach_onboarding_completed');
-
-      if (!onboardingCompleted) {
-        setInitialRoute('/onboarding');
-      } else {
-        setInitialRoute('/home');
-      }
-    } catch (error) {
-      console.error('Error checking user:', error);
-      setInitialRoute('/auth');
-    } finally {
-      setLoading(false); // Terminamos de cargar la lógica
-    }
-  }
-
-  // 4. Efecto para ejecutar la navegación SOLO cuando todo esté listo
+  // 4. Navegación reactiva al estado global
   useEffect(() => {
-    // Si la animación terminó, ya cargó la lógica y tenemos una ruta destino: navegamos.
-    if (animationFinished && !loading && initialRoute) {
-      router.replace(initialRoute);
-    }
-  }, [animationFinished, loading, initialRoute]);
+    const authReady = !isLoading && checkedOnboarding;
+    const splashReady = animationFinished;
+    if (!authReady || !splashReady) return;
 
-  // 5. Renderizado
-  return (
-    <SheetProvider>
-      <AlertProvider>
-        {/* Mantener contenido visible mientras se completa la redirección evita una pantalla blanca. */}
-        <CustomSplashScreen onFinish={() => setAnimationFinished(true)} />
-      </AlertProvider>
-    </SheetProvider>
-  );
+    if (!user) {
+      router.replace('/auth');
+      return;
+    }
+
+    if (!onboardingCompleted) {
+      router.replace('/onboarding');
+      return;
+    }
+
+    router.replace('/home');
+  }, [isLoading, checkedOnboarding, animationFinished, user, onboardingCompleted]);
+
+  // 5. Renderizado (mientras decide ruta, mantenemos splash)
+  return <CustomSplashScreen onFinish={() => setAnimationFinished(true)} />;
 }

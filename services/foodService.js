@@ -80,7 +80,7 @@ const logger = {
  * @property {string|null} barcode
  * @property {string} name
  * @property {string} brand
- * @property {'database'|'openfoodfacts'} source
+ * @property {'database'|'openfoodfacts'|'user'} source
  * @property {{ calories:number, protein:number, carbs:number, fat:number }} per100g
  */
 
@@ -91,7 +91,7 @@ function mapDbRowToFood(row) {
     barcode: row.barcode ?? null, //
     name:    row.name,
     brand:   row.brand ?? '', //
-    source:  'database',
+    source:  ['user', 'openfoodfacts'].includes(row.source) ? row.source : 'database',
     per100g: {
       calories: Math.round(safeNumber(row.calories)),
       protein:  roundTo(safeNumber(row.protein_g)),
@@ -136,7 +136,8 @@ export async function searchLocalFoods(query, signal) {
   const text = normalizeQuery(query); //
   if (!text) return []; //
 
-  const { data, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  const catalogQuery = supabase
     .from('foods')
     .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g')
     .ilike('search_name', `%${text}%`)
@@ -144,13 +145,36 @@ export async function searchLocalFoods(query, signal) {
     .order('name', { ascending: true })
     .limit(CONFIG.LOCAL_SEARCH_LIMIT)
     .abortSignal(signal); //
-  if (error) { //
-    logger.warn(`searchLocalFoods error para "${text}"`, error);
-    return []; //
-  } //
+  const personalQuery = user
+    ? supabase
+        .from('user_foods')
+        .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g, source')
+        .eq('user_id', user.id)
+        .ilike('search_name', `%${text}%`)
+        .order('name', { ascending: true })
+        .limit(CONFIG.LOCAL_SEARCH_LIMIT)
+        .abortSignal(signal)
+    : Promise.resolve({ data: [], error: null });
+  const [catalogResult, personalResult] = await Promise.all([catalogQuery, personalQuery]);
+  if (catalogResult.error) logger.warn(`searchLocalFoods catálogo error para "${text}"`, catalogResult.error);
+  if (personalResult.error) logger.warn(`searchLocalFoods personal error para "${text}"`, personalResult.error);
 
-  logger.debug(`búsqueda local "${text}" → ${data?.length ?? 0} resultados`); //
-  return (data ?? []).map(mapDbRowToFood); //
+  const results = [
+    ...(catalogResult.data ?? []).map(mapDbRowToFood),
+    ...(personalResult.data ?? []).map(mapDbRowToFood),
+  ];
+  const seen = new Set();
+  const uniqueResults = results.filter(food => {
+    const key = food.barcode
+      ? `barcode:${food.barcode}`
+      : `name:${normalizeQuery(food.name)}:${normalizeQuery(food.brand)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  logger.debug(`búsqueda local "${text}" → ${uniqueResults.length} resultados`); //
+  return uniqueResults.slice(0, CONFIG.LOCAL_SEARCH_LIMIT); //
 } //
 
 // ─── Búsqueda en Open Food Facts con retry ────────────────────────────────────
@@ -292,12 +316,14 @@ function dedupeAndMapOffProducts(products) {
 // ─── Guardado en lote (Bulk Save) ─────────────────────────────────────────────
 export async function saveFoodsInBulk(foods) {
   if (!foods?.length) return { saved: 0, errors: 0 };
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { saved: 0, errors: foods.length };
 
   const withBarcode = [];
   const withoutBarcode = [];
 
   for (const food of foods) {
-    const payload = buildFoodPayload(food);
+    const payload = { ...buildFoodPayload(food), user_id: user.id };
     if (food.barcode) {
       withBarcode.push(payload);
     } else {
@@ -308,12 +334,12 @@ export async function saveFoodsInBulk(foods) {
   const promises = [];
   if (withBarcode.length > 0) {
     promises.push(
-      supabase.from('foods').upsert(withBarcode, { onConflict: 'barcode' })
+      supabase.from('user_foods').upsert(withBarcode, { onConflict: 'user_id,barcode' })
     );
   }
   if (withoutBarcode.length > 0) {
     promises.push(
-      supabase.from('foods').insert(withoutBarcode)
+      supabase.from('user_foods').insert(withoutBarcode)
     );
   }
 
@@ -416,59 +442,24 @@ export async function getFoodByBarcode(barcode) {
     .eq('barcode', barcode)
     .maybeSingle();
 
-  if (error) {
-    logger.warn('getFoodByBarcode error', error);
+  if (!error && data) return mapDbRowToFood(data);
+  if (error) logger.warn('getFoodByBarcode catálogo error', error);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: personalFood, error: personalError } = await supabase
+    .from('user_foods')
+    .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g, source')
+    .eq('user_id', user.id)
+    .eq('barcode', barcode)
+    .maybeSingle();
+
+  if (personalError) {
+    logger.warn('getFoodByBarcode personal error', personalError);
     return null;
   }
-
-  return data ? mapDbRowToFood(data) : null;
-}
-
-export async function increaseFoodUsage(foodId) {
-  if (!foodId) return;
-
-  try {
-    const { error } = await supabase.rpc('increment_food_usage', { p_food_id: foodId });
-    if (!error) return;
-    if (error.code !== 'PGRST202' && !error.message.includes('Could not find')) {
-      logger.warn('increaseFoodUsage RPC error', error);
-    }
-  } catch {
-    // RPC no disponible, continuar con fallback
-  }
-
-  // Fallback: read-then-update con reintento
-  await atomicIncrementUsageFallback(foodId);
-}
-
-async function atomicIncrementUsageFallback(foodId, maxRetries = 3) {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const { data, error: fetchError } = await supabase
-      .from('foods')
-      .select('usage_count')
-      .eq('food_id', foodId)
-      .maybeSingle();
-
-    if (fetchError) {
-      logger.warn('increaseFoodUsage error de lectura', fetchError);
-      return;
-    }
-    if (!data) return;
-
-    const { error: updateError } = await supabase
-      .from('foods')
-      .update({
-        usage_count: (data.usage_count ?? 0) + 1,
-        last_used:   new Date().toISOString(),
-      })
-      .eq('food_id', foodId)
-      .eq('usage_count', data.usage_count ?? 0);
-
-    if (!updateError) return;
-
-    logger.warn(`increaseFoodUsage intento ${attempt + 1} fallido`, updateError);
-    await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
-  }
+  return personalFood ? mapDbRowToFood(personalFood) : null;
 }
 
 export function scaleNutrients(food, grams) {
@@ -590,14 +581,12 @@ export async function createFood(foodData) {
       serving_size: '100 g',
       source: 'user',
       search_name: normalizeQuery(foodData.name),
-      created_by: user.id,
-      is_verified: true,
-      usage_count: 0,
+      user_id: user.id,
     };
 
     // Insertar en la base de datos
     const { data, error } = await supabase
-      .from('foods')
+      .from('user_foods')
       .insert(payload)
       .select()
       .single();
@@ -635,8 +624,6 @@ export async function getFoodByBarcodeHybrid(barcode) {
   // 1. Buscar en BD local
   const local = await getFoodByBarcode(barcode);
   if (local) {
-    // Incrementar uso en background
-    increaseFoodUsage(local.id).catch(() => {});
     return local;
   }
 
@@ -651,17 +638,8 @@ export async function getFoodByBarcodeHybrid(barcode) {
 
     const food = mapOffProductToFood(data.product);
 
-    // 3. Guardar en BD local para futuras búsquedas
-    const payload = buildFoodPayload(food);
-    payload.source = 'openfoodfacts';
-    
-    const { data: saved } = await supabase
-      .from('foods')
-      .upsert(payload, { onConflict: 'barcode' })
-      .select('food_id, name, barcode, brand, calories, protein_g, carbs_g, fat_g')
-      .maybeSingle();
-
-    return saved ? mapDbRowToFood(saved) : food;
+    await saveFoodsInBulk([food]);
+    return (await getFoodByBarcode(barcode)) ?? food;
   } catch (err) {
     logger.warn('Error buscando barcode en OFF', err);
     return null;
