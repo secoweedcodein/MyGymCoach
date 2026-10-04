@@ -1,5 +1,5 @@
 // features/workout/components/SetEditorModal.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { GymKeypad } from '../../../components/GymKeypad';
 
@@ -21,6 +21,14 @@ export default function SetEditorModal({ visible, set, onClose, onSave, onDelete
   const [weight, setWeight] = useState(set?.weightKg ? String(set.weightKg) : '');
   const [reps, setReps] = useState(set?.reps ? String(set.reps) : '');
   const [type, setType] = useState(set?.setType || 'N');
+
+  useEffect(() => {
+    if (visible) {
+      setWeight(set?.weightKg ? String(set.weightKg) : '');
+      setReps(set?.reps ? String(set.reps) : '');
+      setType(set?.setType || 'N');
+    }
+  }, [visible, set]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>

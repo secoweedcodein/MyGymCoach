@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { loadCustomExercises } from '../src/screens/data/exercises';
 import CustomSplashScreen from '../src/screens/SplashScreen';
 import { useAuth } from '../src/hooks/useAuth';
+import { getPostAuthRoute } from '../services/onboardingService';
 
 export default function Index() {
   const { user, isLoading } = useAuth();
@@ -29,9 +29,9 @@ export default function Index() {
     (async () => {
       if (user) {
         try {
-          const v = await AsyncStorage.getItem('@mygymcoach_onboarding_completed');
+          const route = await getPostAuthRoute(user.id);
           if (!mounted) return;
-          setOnboardingCompleted(v === 'true');
+          setOnboardingCompleted(route === '/home');
         } catch {
           if (!mounted) return;
           setOnboardingCompleted(false);

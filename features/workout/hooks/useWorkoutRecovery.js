@@ -1,8 +1,6 @@
 // features/workout/hooks/useWorkoutRecovery.js
 import { useCallback, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const KEY = '@mygymcoach_active_workout_v2';
+import { loadActiveWorkout, clearActiveWorkout } from '../services/activeWorkoutStorage';
 
 export function useWorkoutRecovery() {
   const [hasRecovery, setHasRecovery] = useState(false);
@@ -10,13 +8,12 @@ export function useWorkoutRecovery() {
 
   const check = useCallback(async () => {
     try {
-      const raw = await AsyncStorage.getItem(KEY);
-      if (!raw) {
+      const d = await loadActiveWorkout();
+      if (!d) {
         setHasRecovery(false);
         setRecovery(null);
         return;
       }
-      const d = JSON.parse(raw);
       if (d.isActive) {
         setHasRecovery(true);
         setRecovery(d);
@@ -36,7 +33,7 @@ export function useWorkoutRecovery() {
 
   const clear = useCallback(async () => {
     try {
-      await AsyncStorage.removeItem(KEY);
+      await clearActiveWorkout();
     } catch {}
     setHasRecovery(false);
     setRecovery(null);

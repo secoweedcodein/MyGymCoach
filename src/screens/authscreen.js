@@ -1,5 +1,6 @@
 // src/screens/AuthScreen.js
 import React, { useState } from 'react';
+import { router } from 'expo-router';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -7,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase.js';
 import { colors, radius, spacing } from '../../lib/theme.js';
 import { useAlert } from '../context/AlertContext.js';
+import { getPostAuthRoute } from '../../services/onboardingService';
 
 export default function AuthScreen() {
   const [email, setEmail]       = useState('');
@@ -22,15 +24,18 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        router.replace(await getPostAuthRoute(data.user.id));
         showAlert('Éxito', 'Sesión iniciada');
-        // Navegación reactiva al estado global (AuthProvider)
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        showAlert('¡Listo!', 'Revisa tu email para confirmar la cuenta.');
-        // Navegación reactiva al estado global (AuthProvider)
+        if (data.session && data.user) {
+          router.replace(await getPostAuthRoute(data.user.id));
+        } else {
+          showAlert('¡Listo!', 'Revisa tu email para confirmar la cuenta.');
+        }
       }
     } catch (err) {
       showAlert('Error', err.message);

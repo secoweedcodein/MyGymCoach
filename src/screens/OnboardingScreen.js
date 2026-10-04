@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { router } from 'expo-router';
 import {
   View,
   Text,
@@ -8,9 +9,8 @@ import {
   Animated,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GOALS as GOAL_OPTIONS, ACTIVITY_LEVELS } from '../../lib/nutritionConstants';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -89,23 +89,20 @@ export default function OnboardingScreen() {
       // Guardar en user_profiles
       const { data: profile, error } = await supabase
         .from('user_profiles')
-        .update({
+        .upsert({
+          id: user.id,
           goal: selectedGoal,
           activity_level: selectedActivity,
           activity_level_id: selectedActivity,
           days_per_week: Number.parseInt(selectedDays, 10),
-        })
-        .eq('id', user.id)
+        }, { onConflict: 'id' })
         .select('id')
         .maybeSingle();
 
       if (error) throw error;
       if (!profile) throw new Error('No existe el perfil del usuario');
 
-      // Marcar onboarding como completado
-      await AsyncStorage.setItem('@mygymcoach_onboarding_completed', 'true');
-
-      // Navegación reactiva al estado global
+      router.replace('/home');
     } catch (error) {
       console.error('Error completing onboarding:', error);
       alert(`Error al guardar tu perfil: ${error.message || 'Intenta de nuevo.'}`);

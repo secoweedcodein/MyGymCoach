@@ -1,12 +1,14 @@
 // features/workout/hooks/useWorkoutSession.js
 import { useCallback, useEffect, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID } from 'expo-crypto';
 import { createIdempotencyKey } from '../../../lib/trainingLogic';
 import { sessionStats } from '../utils/metrics';
 import { enqueueMutation } from '../../../services/offline/mutationQueueService';
-
-const ACTIVE_WORKOUT_KEY = '@mygymcoach_active_workout_v2';
+import {
+  saveActiveWorkout,
+  loadActiveWorkout,
+  clearActiveWorkout,
+} from '../services/activeWorkoutStorage';
 
 function nowIso() {
   return new Date().toISOString();
@@ -28,6 +30,9 @@ export function useWorkoutSession(userId) {
   const startedTsRef = useRef(null);
 
   const saveState = useCallback(async () => {
+    // Evita sobrescribir un entreno recuperable con el estado inicial vacío
+    // antes de que termine la hidratación.
+    if (!hydrated) return;
     try {
       const data = {
         exercises,
@@ -41,17 +46,16 @@ export function useWorkoutSession(userId) {
         isPaused,
         savedAt: nowIso(),
       };
-      await AsyncStorage.setItem(ACTIVE_WORKOUT_KEY, JSON.stringify(data));
+      await saveActiveWorkout(data);
     } catch (e) {
       console.warn('useWorkoutSession.saveState error', e);
     }
-  }, [exercises, routineName, startedAt, sessionId, sessionClientId, idempotencyKey, elapsed, isActive, isPaused]);
+  }, [hydrated, exercises, routineName, startedAt, sessionId, sessionClientId, idempotencyKey, elapsed, isActive, isPaused]);
 
   const loadState = useCallback(async () => {
     try {
-      const raw = await AsyncStorage.getItem(ACTIVE_WORKOUT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw);
+      const d = await loadActiveWorkout();
+      if (!d) return;
       if (d.exercises) setExercises(d.exercises);
       if (d.routineName) setRoutineName(d.routineName);
       if (d.startedAt) setStartedAt(d.startedAt);
@@ -71,7 +75,7 @@ export function useWorkoutSession(userId) {
 
   const clearState = useCallback(async () => {
     try {
-      await AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
+      await clearActiveWorkout();
     } catch (e) {
       console.warn('useWorkoutSession.clearState error', e);
     }
@@ -122,21 +126,6 @@ export function useWorkoutSession(userId) {
       setIsActive(true);
       setIsPaused(false);
       setExercises([]);
-      enqueueMutation({
-        userId,
-        type: 'create_session',
-        clientGeneratedId: sidClient,
-        payload: {
-          session: {
-            user_id: userId,
-            routine_name: rn,
-            started_at: now,
-            idempotency_key: ik,
-            client_generated_id: sidClient,
-          },
-          sets: [],
-        },
-      }).catch(() => {});
     },
     [userId]
   );

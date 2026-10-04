@@ -13,6 +13,22 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+const changeListeners = new Set();
+
+/** Suscribe un callback para saber cuándo cambia la cola (nuevo ítem, etc.). */
+export function subscribeQueue(listener) {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+function emitQueueChanged() {
+  changeListeners.forEach((l) => {
+    try {
+      l();
+    } catch {}
+  });
+}
+
 export async function getQueue(userId) {
   try {
     const raw = await AsyncStorage.getItem(queueKey(userId));
@@ -43,12 +59,15 @@ export async function enqueueMutation({ userId, type, payload, clientGeneratedId
     error: null,
     lastErrorCode: null,
     lastAttemptAt: null,
+    nextRetryAt: null,
+    permanent: false,
     queuedAt: nowIso(),
     clientGeneratedId: clientGeneratedId || payload?.clientGeneratedId || randomUUID(),
     userId: userId || null,
   };
   list.push(item);
   await saveQueue(userId, dedupeQueueByKey(list));
+  emitQueueChanged();
   return item;
 }
 
