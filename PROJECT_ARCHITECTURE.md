@@ -1,208 +1,246 @@
-# My Gym Coach — Arquitectura del Proyecto
+# My Gym Coach — Arquitectura del Proyecto (Fase 02)
 
-> Esquema generado para que IAs entiendan la estructura, capas y flujos del proyecto.
+> Esquema canónico para que desarrolladores humanos o agentes IA entiendan la estructura,
+> capas, flujos y convenciones del proyecto. **Última actualización: Fase 02.**
 
 ## 1. Visión general
-Aplicación móvil React Native + Expo Router + Supabase para seguimiento de entrenamiento, nutrición y contenido fitness. Arquitectura modular por features, offline-first con idempotencia y flujo de auth reactivo.
+
+Aplicación móvil React Native + Expo Router + Supabase para seguimiento de entrenamiento,
+nutrición y contenido fitness. Arquitectura **Feature-First modular**, offline-first con
+idempotencia y flujo de auth reactivo.
 
 ## 2. Stack Tecnológico
-- **Framework**: React Native + Expo (managed)
-- **Routing**: Expo Router (file-based)
-- **Backend/Auth/DB**: Supabase (Postgres + Auth + RLS + RPCs)
-- **Estado**: React hooks + Context (AuthProvider)
+
+- **Framework**: React Native 0.81.5 + Expo SDK 54 (managed)
+- **Routing**: Expo Router ~6.0.24 (file-based)
+- **Backend/Auth/DB**: Supabase (Postgres + Auth + RLS + RPCs + Edge Functions)
+- **Estado**: React Context + custom hooks (AuthProvider)
 - **Almacenamiento local**: AsyncStorage
 - **Red/Offline**: @react-native-community/netinfo
-- **Utilidades**: date-fns, lodash, etc.
-- **UI**: Componentes nativos + estilos StyleSheet
+- **Utilidades**: date-fns, lodash
+- **UI**: Componentes nativos + StyleSheet
+- **Lenguaje canónico**: TypeScript (migración progresiva desde JS)
 
-## 3. Estructura de Carpetas
+## 3. Arquitectura de Capas
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  CAPA 1 — Routing           app/                         │
+│  Expo Router file-based. Solo re-exports y guards.       │
+├──────────────────────────────────────────────────────────┤
+│  CAPA 2 — Features          features/<domain>/           │
+│  Dominios autocontenidos (workout, routines, nutrition…)  │
+├──────────────────────────────────────────────────────────┤
+│  CAPA 3 — Shared            shared/  (migración en curso)│
+│  Componentes, hooks y contextos cross-feature.           │
+│  Actual: src/contexts/, src/hooks/, src/components/      │
+├──────────────────────────────────────────────────────────┤
+│  CAPA 4 — Services          services/                    │
+│  Infraestructura: cola offline, network listener.        │
+├──────────────────────────────────────────────────────────┤
+│  CAPA 5 — Core / Lib        lib/                         │
+│  supabase client, theme tokens, lógica pura, retry.      │
+├──────────────────────────────────────────────────────────┤
+│  CAPA 6 — Backend           supabase/                    │
+│  Migraciones SQL, RPCs, Edge Functions (Deno).           │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Regla de dependencia**: Las capas solo pueden depender de capas inferiores.
+Nunca de capas superiores ni de features hermanas.
+
+## 4. Estructura de Carpetas Canónica
 
 ```text
 mygymcoach/
 ├── app/                        # Expo Router (file-based routing)
-│   ├── _layout.js              # Root layout + AuthProvider + ErrorBoundary
-│   ├── index.js                # Entry point (splash + navegación reactiva)
+│   ├── _layout.js              # Root → Providers (Auth, Alert, Sheet, Offline)
+│   ├── index.js                # Entry → Splash + navegación reactiva
 │   ├── auth.js                 # Re-export AuthScreen
-│   ├── onboarding.js           # Re-export Onboarding
-│   ├── workout.js              # Re-export WorkoutScreen (feature)
+│   ├── onboarding.js           # Re-export OnboardingScreen
+│   ├── workout.js              # Re-export WorkoutScreen
 │   ├── (auth)/                 # Grupo auth
-│   │   ├── _layout.js
-│   │   ├── index.js
-│   │   └── login.js
-│   ├── (tabs)/                 # Grupo tabs principal
-│   │   ├── _layout.js          # ProtectedRoute + OnboardingGuard
+│   ├── (tabs)/                 # Grupo tabs (ProtectedRoute + OnboardingGuard)
 │   │   ├── home.js
 │   │   ├── explore.js
 │   │   ├── coach.js
-│   │   ├── profile.js
-│   │   └── workout.js          # Re-export WorkoutScreen
-│   └── admin/                  # Rutas admin
-│       └── _layout.js          # AdminGuard
-├── features/                   # Feature-First modular
-│   └── workout/                # Feature: Sistema de entrenamiento
-│       ├── README.md
-│       ├── types/              # Contratos (workout.types.ts/js)
-│       ├── utils/              # Lógica pura
-│       │   ├── metrics.js      # Volumen, PR, progresión, streaks
-│       │   └── idempotency.js  # UUIDs + idempotency keys
-│       ├── services/           # Persistencia/sync
-│       │   ├── activeWorkoutStorage.js
-│       │   ├── workoutSyncService.js
-│       │   └── workoutQueueProcessor.js
-│       ├── hooks/               # Estado reactivo
-│       │   ├── useWorkoutSession.js
-│       │   ├── useWorkoutTimer.js
-│       │   ├── useRestTimer.js
-│       │   ├── useWorkoutHydration.js
-│       │   └── useWorkoutRecovery.js
-│       ├── components/          # UI desacoplada
-│       │   ├── TimerFloating.js
-│       │   ├── ExerciseCard.js
-│       │   ├── SetRow.js
-│       │   ├── SetEditorModal.js
-│       │   ├── ExerciseSelectorModal.js
-│       │   ├── RestTimerModal.js
-│       │   └── CircularTimer.js
-│       └── screens/             # Pantallas feature
-│           └── WorkoutScreen.js
-├── src/                        # Código compartido (legacy + core)
-│   ├── contexts/
-│   │   ├── AuthProvider.js/tsx # Auth global (getSession + onAuthStateChange)
-│   │   └── AlertContext.js
-│   ├── hooks/
-│   │   └── useAuth.js/tsx      # Hook consumo auth
-│   ├── components/
-│   │   ├── guards/             # Guards de rutas
-│   │   │   ├── ProtectedRoute.js/tsx
-│   │   │   ├── OnboardingGuard.js/tsx
-│   │   │   └── AdminGuard.js/tsx
-│   │   ├── ErrorBoundary.js
-│   │   ├── ExerciseIcon.js
-│   │   ├── WeightChart.js
-│   │   ├── BottomTabBar.js
-│   │   ├── PlateCalculatorModal.js
-│   │   ├── RPESelector.js
-│   │   └── GymKeypad.js
-│   ├── screens/                 # Screens legacy (migrados parcialmente)
-│   │   ├── authscreen.js
-│   │   ├── OnboardingScreen.js
-│   │   ├── homeScreen.js
-│   │   ├── ProfileScreen.js
-│   │   ├── workoutscreen.js     # Compat → feature
-│   │   ├── hooks/               # Hooks específicos screens
-│   │   └── data/                # Datos estáticos
-│   └── context/                 # Contexts adicionales
-├── services/                    # Servicios globales
-│   ├── offline/
-│   │   ├── mutationQueueService.js  # Cola con estados + idempotencia
-│   │   └── networkListener.js       # Listener conectividad + AppState
-│   ├── exportService.js
-│   ├── userRecipeService.js
-│   ├── foodService.js
-│   └── ...
-├── lib/                         # Utilidades núcleo
-│   ├── offline/
-│   │   ├── network.js           # NetInfo wrapper
-│   │   ├── retry.js            # withRetry + backoff+jitter
-│   │   └── storageKeys.js      # Claves unificadas
-│   ├── trainingLogic.js         # Lógica pura entrenamiento
-│   ├── nutritionCalculator.js
-│   ├── nutritionConstants.js
-│   ├── supabase.js             # Cliente Supabase
-│   └── adminAuth.js            # Verificación admin
-├── supabase/
-│   ├── migrations/              # Migraciones SQL
-│   │   └── 20251004100000_add_finish_workout_rpc.sql  # RPC transaccional
-│   └── functions/               # Edge Functions
-└── PROJECT_ARCHITECTURE.md      # Este esquema
+│   │   └── profile.js
+│   ├── admin/                  # Rutas admin (AdminGuard)
+│   └── explore/                # Sub-rutas explore
+│
+├── features/                   # Feature-First modular (11 dominios)
+│   ├── auth/                   # Autenticación y onboarding
+│   ├── workout/                # Entrenamiento ✅ (migrado)
+│   ├── routines/               # Gestión de rutinas
+│   ├── nutrition/              # Nutrición, alimentos, recetas
+│   ├── explore/                # Contenido, retos, artículos
+│   ├── coach/                  # Coach IA
+│   ├── profile/                # Perfil y BMI
+│   ├── home/                   # Dashboard principal
+│   ├── history/                # Historial de entrenamientos
+│   ├── steps/                  # Podómetro
+│   └── admin/                  # Panel administrativo
+│
+├── shared/                     # Código compartido cross-feature
+│   ├── components/             # guards/, ui/, feedback/, layout/
+│   ├── contexts/               # AuthProvider, AlertContext, SheetContext
+│   ├── hooks/                  # useAuth, useHomeData
+│   └── types/                  # Tipos globales
+│
+├── services/                   # Servicios de infraestructura
+│   └── offline/                # mutationQueueService, networkListener
+│
+├── lib/                        # Núcleo y utilidades puras
+│   ├── supabase.js             # Cliente Supabase (singleton)
+│   ├── theme.js                # Design system (ÚNICO source of truth)
+│   ├── offline/                # network, retry, storageKeys
+│   ├── trainingLogic.js        # Lógica pura entrenamiento
+│   ├── nutritionCalculator.js  # Lógica pura nutrición
+│   └── ...                     # dateUtils, errors, logger, cache
+│
+├── supabase/                   # Backend
+│   ├── migrations/             # 14 migraciones SQL (000-013)
+│   ├── functions/              # Edge Functions (coach-chat, coach-analysis, generate-recipe)
+│   └── config.toml
+│
+├── assets/                     # Recursos estáticos
+│
+└── src/                        # ⚠️ LEGACY (migración en curso a features/ y shared/)
+    ├── contexts/               # → shared/contexts/
+    ├── hooks/                  # → shared/hooks/
+    ├── components/             # → shared/components/
+    ├── screens/                # → features/<domain>/screens/
+    ├── context/                # → shared/contexts/
+    └── ui/                     # → shared/components/ui/
 ```
 
-## 4. Arquitectura de Capas
+## 5. Blueprint de Feature Module
 
-| Capa | Ubicación | Responsabilidad |
-|---|---|---|
-| **Routing/UI** | `app/` | Navegación file-based, layouts, guards |
-| **Features** | `features/*` | Dominio modular (workout). Aislado, reutilizable, testeable |
-| **Screens/Shared** | `src/screens`, `src/components` | UI compartida y screens legacy |
-| **Hooks** | `features/*/hooks`, `src/hooks` | Estado reactivo, side-effects acotados |
-| **Services** | `services/` | Persistencia, sync, colas, integraciones externas |
-| **Core/Utils** | `lib/` | Lógica pura, helpers, infraestructura (offline, retry) |
-| **Data** | `supabase/` | DB schema, RPCs, Edge Functions |
+Cada feature sigue exactamente esta estructura interna:
 
-## 5. Autenticación y Navegación
+```text
+features/<domain>/
+├── README.md               # Propósito, API pública, dependencias
+├── index.ts                # Barrel export
+├── types/<domain>.types.ts # Contratos TypeScript
+├── screens/                # Pantallas (export default)
+├── hooks/                  # Custom hooks (named export)
+├── services/               # Persistencia/sync (named exports)
+├── components/             # UI desacoplada (named export, opcional)
+└── utils/                  # Lógica pura (opcional)
+```
 
-### Flujo reactivo (estricto)
-`Auth (Login/Registro) → Session (validación global) → Onboarding (perfil incompleto) → App (Main Tabs/Home)`
+## 6. Autenticación y Navegación
+
+### Flujo reactivo
+`Auth → Session → Onboarding (si perfil incompleto) → App (Tabs/Home)`
 
 ### Componentes
-- **`AuthProvider`** (`src/contexts/AuthProvider.js/tsx`): Único source of truth. Inicializa con `supabase.auth.getSession()` + escucha `supabase.auth.onAuthStateChange()`. Expone `user`, `session`, `isLoading`.
-- **`useAuth`** (`src/hooks/useAuth.js/tsx`): Consumo del contexto sin prop-drilling.
-- **`ProtectedRoute`**: Expulsa no autenticados a `/auth`.
-- **`OnboardingGuard`**: Fuerza a completar onboarding si perfil incompleto.
-- **`AdminGuard`**: Verifica rol admin (JWT/RPC/perfiles).
+- **AuthProvider** (`src/contexts/AuthProvider.tsx`): Source of truth. `getSession()` + `onAuthStateChange()`.
+- **useAuth** (`src/hooks/useAuth.ts`): Consumo del contexto.
+- **ProtectedRoute**: Expulsa no autenticados a `/auth`.
+- **OnboardingGuard**: Fuerza completar onboarding.
+- **AdminGuard**: Verifica rol admin (JWT/RPC).
 
 ### Entry Point
-`app/index.js`: Usa `useAuth` + AsyncStorage onboarding → navegación reactiva (sin listeners dispersos).
+`app/index.js`: `useAuth` + AsyncStorage onboarding → navegación reactiva.
 
-## 6. Sistema de Entrenamiento (FASE 3)
+## 7. Sistema de Entrenamiento (Feature Workout)
 
 ### Feature `features/workout/`
-- **Tipos**: Contratos claros (`WorkoutSession`, `WorkoutSet`, `ExerciseEntry`, `MutationState`)
-- **Utils**: Volumen, estadísticas, 1RM estimado (Brzycki), PRs, progresión, detección plateau, streaks (puro, determinista)
-- **Hooks**: `useWorkoutSession` (estado sesión activa + persistencia), `useWorkoutTimer` (timer), `useRestTimer` (descanso con vibración), `useWorkoutHydration`/`useWorkoutRecovery` (recuperación ante cierres inesperados)
-- **Components**: UI desacoplada (TimerFloating, ExerciseCard, SetRow, SetEditorModal, ExerciseSelectorModal, RestTimerModal, CircularTimer)
-- **Screen**: `WorkoutScreen.js` modular (orquesta hooks + lógica UI)
+- **Tipos**: `WorkoutSession`, `WorkoutSet`, `ExerciseEntry`, `MutationState`
+- **Utils**: Volumen, 1RM (Brzycki), PRs, progresión, streaks (puro, determinista)
+- **Hooks**: `useWorkoutSession`, `useWorkoutTimer`, `useRestTimer`, `useWorkoutHydration`, `useWorkoutRecovery`
+- **Components**: TimerFloating, ExerciseCard, SetRow, SetEditorModal, etc.
+- **Screen**: WorkoutScreen.js (orquesta hooks + UI)
 
-## 7. Offline-First + Idempotencia (FASE 4)
+## 8. Offline-First + Idempotencia
 
-### Pipeline estricto
-$$\text{Acción de UI} \longrightarrow \text{AsyncStorage (Local)} \longrightarrow \text{Cola de Mutaciones (Queue)} \longrightarrow \text{Network Listener} \longrightarrow \text{Retry} \longrightarrow \text{Supabase RPC}$$
+### Pipeline
+`UI → AsyncStorage → Cola de Mutaciones → Network Listener → Retry → Supabase RPC`
 
 ### Máquina de estados
-Cada ítem de cola: `pending → syncing → synced | failed` (con `error`, `attempts`, `lastAttemptAt`, `nextRetryAt`, `permanent`, `maxAttempts`).
-- `failed` + `permanent=false` → reintentable (backoff + `nextRetryAt`).
-- `failed` + `permanent=true` → dead-letter (error no reintentable o `maxAttempts` agotado).
-- `syncing` > 2 min → se recupera (app cerrada a mitad de envío).
+`pending → syncing → synced | failed` (con `permanent`, `maxAttempts`, `nextRetryAt`).
 
 ### Idempotencia
-- `idempotency_key` estable: `wk_<hash(userId:startedAt)>` (índice único en DB)
-- `client_generated_id` (UUID v4) local para dedupe de la cola (no se persiste como columna)
-- Dedupe por clave, verificación previa de sesión existente
-- Escritura preferente vía **RPC `public.finish_workout(p_session JSONB, p_sets JSONB)`** (transaccional, SECURITY DEFINER, idempotente; definido en `008_training_engine.sql`). Fallback 2-pasos (columnas reales + `exercise_id` UUID o NULL) si el RPC no está.
+- `idempotency_key`: `wk_<hash(userId:startedAt)>` (índice único en DB)
+- `client_generated_id` (UUID) para dedupe local
+- RPC `finish_workout(p_session, p_sets)` transaccional e idempotente
 
-### Infraestructura offline
-- **Cola**: `services/offline/mutationQueueService.js` (estados + metadatos + FIFO + evento de cambio)
-- **Processor**: `features/workout/services/workoutQueueProcessor.js` (secuencial, backoff con `nextRetryAt`, dead-letter)
-- **Network**: `lib/offline/network.js` + `services/offline/networkListener.js` (NetInfo + AppState foreground)
-- **Ciclo de vida**: `src/components/OfflineSyncManager.js`, montado en `app/_layout.js` dentro de `AuthProvider`
-- **Retry**: `lib/offline/retry.js` + backoff exponencial con **jitter** y tope configurable
+### Infraestructura
+- Cola: `services/offline/mutationQueueService.js`
+- Processor: `features/workout/services/workoutQueueProcessor.js`
+- Network: `lib/offline/network.js` + `services/offline/networkListener.js`
+- Sync Manager: `src/components/OfflineSyncManager.js` en `app/_layout.js`
+- Retry: `lib/offline/retry.js` (backoff exponencial + jitter)
 
-### Persistencia estado activo
-`features/workout/services/activeWorkoutStorage.js` usa `@mygymcoach_active_workout_v2` y migra la clave legada `@mygymcoach_active_workout` (rehidratación + recuperación automática).
+## 9. Design System
 
-## 8. Base de Datos (Supabase)
+### Source of Truth: `lib/theme.js`
 
-### Tablas clave (workout)
-- `workout_sessions` (PK uuid, user_id FK, `idempotency_key` text, métricas)
-- `workout_sets` (PK uuid, session_id FK, ejercicio + series + completado)
-- `routines`, `routine_exercises` (plantillas)
+| Export | Contenido |
+|---|---|
+| `colors` | Paleta completa (bg, accent, estado, texto, bordes) |
+| `radius` | sm(10), md(16), lg(22), xl(28), full(999) |
+| `spacing` | xs(4), sm(8), md(16), lg(24), xl(32) |
+| `type` | display, title, body, caption, label |
+| `shadow` | card shadow preset |
 
-### RPCs
-- `public.finish_workout(p_session JSONB, p_sets JSONB)` — Guarda sesión+sets de forma transaccional e idempotente (SECURITY DEFINER). Retorna sesión creada/identificada.
+**Regla**: Todo color, radio, spacing y tipografía se importa de `lib/theme.js`.
+Prohibido hardcodear valores en StyleSheets.
 
-## 9. Convenciones
+## 10. Convenciones
 
-- **Feature-First**: Dominio encapsulado en `features/`. Evita acoplamiento cross-feature.
-- **Lógica pura vs side-effects**: Utils/metrics 100% puros (testeables). Services/hooks concentran efectos.
-- **Estado único**: Auth centralizado. Estado de workout local + cola offline.
-- **Idempotente + resiliente**: Nunca pierde datos offline; evita duplicados en reconexiones.
-- **Type-first contracts**: Tipos compartidos en `features/workout/types/`.
-- **Compatibilidad hacia atrás**: Re-exports mantienen imports existentes.
+### Nombres
+- Pantallas: `PascalCase` + `Screen` (e.g., `RoutinesScreen.js`)
+- Componentes: `PascalCase` (e.g., `ExerciseCard.js`)
+- Hooks: `camelCase` + `use` (e.g., `useWorkoutSession.js`)
+- Servicios: `camelCase` + `Service` (e.g., `foodService.js`)
+- Rutas: `kebab-case` minúsculas (e.g., `history-detail.js`)
 
-## 10. Puntos de Entrada Críticos
-- `app/_layout.js` — Providers raíz (Auth + UI)
+### Arquitectura
+- **Feature-First**: Dominio encapsulado en `features/`. Sin acoplamiento cross-feature.
+- **Lógica pura vs side-effects**: Utils 100% puros. Services/hooks concentran efectos.
+- **Estado único**: Auth centralizado. Estado local + cola offline por feature.
+- **Idempotente + resiliente**: Nunca pierde datos offline.
+- **Type-first contracts**: Tipos definidos antes de implementar.
+
+## 11. Puntos de Entrada Críticos
+
+- `app/_layout.js` — Providers raíz (Auth + Alert + Sheet + Offline)
 - `app/index.js` — Navegación reactiva
 - `features/workout/screens/WorkoutScreen.js` — Orquestación entrenamiento
 - `services/offline/mutationQueueService.js` — Núcleo cola offline
 - `features/workout/services/workoutSyncService.js` — Sincronización RPC/fallback
-- `src/contexts/AuthProvider.js` — Source of truth auth
+- `src/contexts/AuthProvider.tsx` — Source of truth auth
+- `lib/theme.js` — Source of truth design system
+
+## 12. Base de Datos (Supabase)
+
+### Tablas clave
+- `user_profiles`, `workout_sessions`, `workout_sets`
+- `routines`, `routine_exercises`
+- `foods`, `nutrition_entries`, `meal_plans`
+- `articles`, `recipes`, `challenges`, `trends`
+
+### RPCs
+- `finish_workout(p_session, p_sets)` — Transaccional e idempotente (SECURITY DEFINER)
+- `assert_admin()` — Verificación de rol
+
+### Edge Functions
+- `coach-chat` — Chat IA (OpenAI)
+- `coach-analysis` — Análisis de entrenamiento
+- `generate-recipe` — Generación de recetas
+
+## 13. Estado de Migración
+
+| Carpeta | Estado | Destino |
+|---|---|---|
+| `features/workout/` | ✅ Migrado | — |
+| `src/contexts/` | 🔲 Pendiente | `shared/contexts/` |
+| `src/hooks/` | 🔲 Pendiente | `shared/hooks/` |
+| `src/components/guards/` | 🔲 Pendiente | `shared/components/guards/` |
+| `src/screens/` | 🔲 Pendiente | `features/<domain>/screens/` |
+| `components/` | 🔲 Pendiente | `shared/components/ui/` |
+| `components/home/` | 🔲 Pendiente | `features/home/components/` |
+| `services/` (feature-specific) | 🔲 Pendiente | `features/<domain>/services/` |
