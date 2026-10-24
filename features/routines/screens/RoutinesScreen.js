@@ -59,19 +59,26 @@ const { showAlert } = useAlert();
   }, [step]);
   const scrollRef = React.useRef(null);
 
+  const [initError, setInitError] = useState(null);
   async function initScreen() {
     try {
+      setInitError(null);
       const { getCurrentUser, fetchUserRoutines } = await import('../services/routinesService');
+      const { loadCustomExercisesList } = await import('../services/exerciseService');
       const user = await getCurrentUser();
-      if (!user) return;
+      if (!user) {
+        setRoutines([]);
+        setAllExercises(getAllExercises());
+        return;
+      }
 
       const data = await fetchUserRoutines(user.id);
       if (data) setRoutines(data);
 
-      await loadCustomExercises(supabase);
-      setAllExercises(getAllExercises());
+      const list = await loadCustomExercisesList();
+      setAllExercises(list);
     } catch (e) {
-      // ignore
+      setInitError(e?.message || 'Error al cargar rutinas');
     }
   }
 

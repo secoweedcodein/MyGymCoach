@@ -1,5 +1,6 @@
-import HistoryScreen from '../src/screens/HistoryScreen';
+﻿import HistoryScreen from '../features/history/screens/HistoryScreen';
 
 export default function Page() {
   return <HistoryScreen />;
 }
+
