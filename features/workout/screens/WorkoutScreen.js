@@ -3,12 +3,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Animated,
 } from 'react-native';
-import { supabase } from '../../../lib/supabase';
 import { getExercise, getAllExercises } from '../../../src/screens/data/exercises';
 import { router, useLocalSearchParams } from 'expo-router';
 import RecordToast from '../../../components/RecordToast';
 import { usePersonalRecords } from '../../../src/screens/hooks/usePersonalRecords';
 import { useAlert } from '../../../src/context/AlertContext';
+import { useAuth } from '../../../src/hooks/useAuth';
 import { useFocusEffect } from '@react-navigation/native';
 import TimerFloating from '../components/TimerFloating';
 import ExerciseCard from '../components/ExerciseCard';
@@ -68,10 +68,11 @@ const sp = StyleSheet.create({
 
 export default function WorkoutScreen({ route }) {
   const { showAlert } = useAlert();
+  const { user } = useAuth();
+  const userId = user?.id || null;
   const params = useLocalSearchParams();
   const rawRoutine = params?.routine || route?.params?.routine;
   const routine = typeof rawRoutine === 'string' ? JSON.parse(rawRoutine) : (rawRoutine || {});
-  const [userId, setUserId] = useState(null);
   const pr = usePersonalRecords(userId) || {};
   const checkRecord = pr.checkRecord;
   const newRecord = pr.newRecord;
@@ -114,17 +115,6 @@ export default function WorkoutScreen({ route }) {
   const [showRpeModal, setShowRpeModal] = useState(false);
   const [rpeSetCtx, setRpeSetCtx] = useState({ exId: null, set: null });
   const [allExercises, setAllExercises] = useState([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        setUserId(data?.user?.id || null);
-      } catch {
-        setUserId(null);
-      }
-    })();
-  }, []);
 
   useEffect(() => {
     try {

@@ -36,6 +36,8 @@ alter table public.user_profiles add column if not exists calorie_goal numeric(7
 alter table public.user_profiles add column if not exists protein_goal numeric(6,1);
 alter table public.user_profiles add column if not exists goal text;
 alter table public.user_profiles add column if not exists activity_level text;
+-- Columna id usada por el cliente (Onboarding/Profile/useNutrition) y por 013.
+alter table public.user_profiles add column if not exists activity_level_id text;
 alter table public.user_profiles add column if not exists days_per_week integer;
 alter table public.user_profiles add column if not exists weight_kg numeric(5,1);
 alter table public.user_profiles add column if not exists height_cm numeric(5,1);

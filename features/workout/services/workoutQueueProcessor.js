@@ -14,6 +14,7 @@ import {
 import { syncMutation } from './workoutSyncService';
 
 let processing = false;
+let rerun = false;
 let timer = null;
 let timerAt = 0;
 let lastOpts = {};
@@ -38,7 +39,14 @@ function isDue(item, now) {
 }
 
 export async function processQueue(userId, opts = {}) {
-  if (processing || !userId) return { processed: 0, remaining: 0 };
+  if (!userId) return { processed: 0, remaining: 0 };
+  // Si ya se está procesando, marca una nueva pasada. Los ítems encolados
+  // mientras procesábamos (o que fallen y queden pendientes de reintento)
+  // quedaban varados porque el early-return no reprogramaba nada.
+  if (processing) {
+    rerun = true;
+    return { processed: 0, remaining: 0, deferred: true };
+  }
   const { onItemSynced, onItemFailed, onQueueEmpty } = opts;
   lastOpts = opts;
   processing = true;
@@ -49,7 +57,9 @@ export async function processQueue(userId, opts = {}) {
     const candidates = list.filter(it => isDue(it, now));
 
     if (candidates.length === 0) {
-      onQueueEmpty?.();
+      if (list.length === 0) onQueueEmpty?.();
+      // Reprograma reintentos futuros / syncing obsoletos aunque no haya nada due ahora.
+      scheduleNext(userId, list);
       return { processed: 0, remaining: list.length };
     }
 
@@ -88,14 +98,32 @@ export async function processQueue(userId, opts = {}) {
     return { processed, remaining: remaining.length };
   } finally {
     processing = false;
+    // Ítems encolados durante esta pasada: reejecuta de inmediato.
+    if (rerun) {
+      rerun = false;
+      scheduleProcess(userId, lastOpts, 0);
+    }
   }
 }
 
 function scheduleNext(userId, list) {
-  const retryable = list.filter(it => it.state === 'failed' && !it.permanent && it.nextRetryAt);
-  if (retryable.length === 0) return;
-  const soonest = Math.min(...retryable.map(it => new Date(it.nextRetryAt).getTime()));
-  const delay = Math.max(1000, soonest - Date.now());
+  if (!list || list.length === 0) return;
+  const now = Date.now();
+  const times = [];
+  for (const it of list) {
+    if (it.state === 'pending') {
+      times.push(now);
+    } else if (it.state === 'syncing') {
+      const since = it.lastAttemptAt ? new Date(it.lastAttemptAt).getTime() : 0;
+      times.push(Math.max(now, since + STALE_SYNCING_MS));
+    } else if (it.state === 'failed' && !it.permanent) {
+      const at = it.nextRetryAt ? new Date(it.nextRetryAt).getTime() : now;
+      times.push(Math.max(now, at));
+    }
+  }
+  if (times.length === 0) return;
+  const soonest = Math.min(...times);
+  const delay = Math.max(1000, soonest - now);
   scheduleProcess(userId, lastOpts, delay);
 }
 

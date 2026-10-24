@@ -80,7 +80,13 @@ export async function saveWorkoutSessionFallback(payload, userId) {
     const setsWithSessionId = sanitizeSets(payload.sets, session.id);
     const { error: setsError } = await supabase.from('workout_sets').insert(setsWithSessionId);
     if (setsError) {
-      await supabase.from('workout_sessions').delete().eq('id', session.id).maybeSingle();
+      // Limpieza best-effort para no dejar una sesión huérfana sin series.
+      // El borrado puede propagarse por FK a las series ya insertadas.
+      try {
+        await supabase.from('workout_sessions').delete().eq('id', session.id);
+      } catch {
+        // Se prioriza reportar el error original de inserción de series.
+      }
       throw setsError;
     }
   }

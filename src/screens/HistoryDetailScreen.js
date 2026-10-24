@@ -3,10 +3,11 @@ import {
   ScrollView,
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { colors, radius, spacing } from '../../lib/theme';
 
@@ -60,7 +61,16 @@ export default function HistoryDetailScreen() {
       style={s.container}
       contentContainerStyle={{ padding: spacing.lg }}
     >
-      <Text style={s.title}>Historial del entrenamiento</Text>
+      <View style={s.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={s.backBtn}
+          activeOpacity={0.7}
+        >
+          <Text style={s.backText}>← Volver</Text>
+        </TouchableOpacity>
+        <Text style={s.title}>Historial del entrenamiento</Text>
+      </View>
 
       {Object.keys(grouped).length === 0 && (
         <Text style={s.empty}>
@@ -111,7 +121,23 @@ const s = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: colors.t1,
+  },
+
+  header: {
     marginBottom: 20,
+    paddingTop: 10,
+  },
+
+  backBtn: {
+    paddingVertical: 6,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+
+  backText: {
+    color: colors.accent,
+    fontSize: 15,
+    fontWeight: '600',
   },
 
   empty: {

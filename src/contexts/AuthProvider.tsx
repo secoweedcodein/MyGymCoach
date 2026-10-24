@@ -1,5 +1,6 @@
 // src/contexts/AuthProvider.tsx
 import React, { createContext, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 
@@ -45,9 +46,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     });
 
+    // Refresca el token automáticamente cuando la app vuelve a primer plano.
+    // Sin esto, en móvil la sesión puede quedar con un token caducado al reabrir.
+    supabase.auth.startAutoRefresh();
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+
     return () => {
       mounted = false;
       data.subscription.unsubscribe();
+      appStateSub.remove();
+      supabase.auth.stopAutoRefresh();
     };
   }, []);
 

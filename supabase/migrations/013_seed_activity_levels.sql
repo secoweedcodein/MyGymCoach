@@ -9,5 +9,10 @@ ON CONFLICT (id) DO UPDATE
 SET display_name = EXCLUDED.display_name,
     multiplier = EXCLUDED.multiplier;
 
+-- activity_level_id es la columna que consume el cliente (Onboarding/Profile/useNutrition).
+-- Se garantiza por si la base no la tenía (no existe en 006).
+ALTER TABLE public.user_profiles
+  ADD COLUMN IF NOT EXISTS activity_level_id text;
+
 ALTER TABLE public.user_profiles
   ALTER COLUMN activity_level_id SET DEFAULT 'sedentary';

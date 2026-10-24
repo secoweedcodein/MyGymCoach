@@ -67,7 +67,7 @@ export default function CreateUserRecipeScreen() {
       time: form.time.trim(),
       ingredients: form.ingredients.trim(),
       steps: form.steps.trim(),
-      status: 'approved',
+      status: 'pending',
     });
 
     setLoading(false);
@@ -75,7 +75,7 @@ export default function CreateUserRecipeScreen() {
     if (error) {
       Alert.alert('Error', error.message);
     } else {
-      Alert.alert('¡Éxito!', 'Tu receta ha sido publicada para toda la comunidad.');
+      Alert.alert('¡Enviada!', 'Tu receta quedará publicada para la comunidad tras la revisión.');
       router.back();
     }
   }
