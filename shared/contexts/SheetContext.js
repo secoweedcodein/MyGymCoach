@@ -4,7 +4,7 @@ import React, {
   useState,
 } from "react";
 
-import AppSheet from "../ui/AppSheet";
+import AppSheet from "../../src/ui/AppSheet";
 
 const SheetContext = createContext();
 

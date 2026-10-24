@@ -5,7 +5,7 @@ import {
   createCustomExercise,
   loadCustomExercises,
   getAllExercises,
-} from '../../screens/data/exercises';
+} from '../../../src/screens/data/exercises';
 
 export async function loadCustomExercisesList() {
   try {

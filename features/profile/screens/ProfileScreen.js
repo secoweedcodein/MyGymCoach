@@ -6,14 +6,14 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { useAlert } from "../context/AlertContext";
-import { useAuth } from '../hooks/useAuth';
-import BottomTabBar from '../../components/BottomTabBar';
-import { exportWorkoutHistory } from '../../services/exportService';
-import { WeightChart } from '../../components/WeightChart';
-import { GOALS, ACTIVITY_LEVELS, resolveGoal, resolveActivityLevel, goalLabel } from '../../lib/nutritionConstants';
-import { calculateDailyNutrition, validateNutritionProfile } from '../../lib/nutritionCalculator';
+import { supabase } from '../../../lib/supabase';
+import { useAlert } from '../../../shared/contexts/AlertContext';
+import { useAuth } from '../../../shared/hooks/useAuth';
+import BottomTabBar from '../../../components/BottomTabBar';
+import { exportWorkoutHistory } from '../../../services/exportService';
+import { WeightChart } from '../../../components/WeightChart';
+import { GOALS, ACTIVITY_LEVELS, resolveGoal, resolveActivityLevel, goalLabel } from '../../../lib/nutritionConstants';
+import { calculateDailyNutrition, validateNutritionProfile } from '../../../lib/nutritionCalculator';
 // ── Tokens de diseño ──────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';

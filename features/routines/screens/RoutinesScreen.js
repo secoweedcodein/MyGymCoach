@@ -1,5 +1,5 @@
 // features/routines/screens/RoutinesScreen.js
-// FASE 03: Migrado a features/routines - usa guardado atómico + better error handling
+// FASE 03: Migrado a features/routines - usa guardado atï¿½mico + better error handling
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
@@ -14,7 +14,7 @@ import {
   createCustomExercise,
   loadCustomExercises,
   getAllExercises,
-} from '../../screens/data/exercises';
+} from '../../../src/screens/data/exercises';
 import { colors, radius, spacing } from '../../../lib/theme';
 import ExerciseIcon from '../../../components/ExerciseIcon';
 import { useAlert } from "../../../src/context/AlertContext";
@@ -142,7 +142,7 @@ const { showAlert } = useAlert();
       const { getCurrentUser, saveRoutineWithExercisesAtomic } = await import('../services/routinesService');
       const user = await getCurrentUser();
       if (!user) {
-        showAlert('Error', 'Inicia sesión para guardar.');
+        showAlert('Error', 'Inicia sesiï¿½n para guardar.');
         return;
       }
 
@@ -170,7 +170,7 @@ const { showAlert } = useAlert();
 
       resetForm();
       await initScreen();
-      showAlert(editId ? 'Rutina actualizada' : 'Rutina creada', 'Se guardó correctamente.');
+      showAlert(editId ? 'Rutina actualizada' : 'Rutina creada', 'Se guardï¿½ correctamente.');
     } catch (e) {
       showAlert('Error', e?.message || 'No se pudo guardar la rutina');
     } finally {

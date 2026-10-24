@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
-import { colors, radius, spacing, type, shadow } from '../../lib/theme';
+import { supabase } from '../../../lib/supabase';
+import { colors, radius, spacing, type, shadow } from '../../../lib/theme';
 
 export default function HistoryScreen() {
   const [sessions, setSessions] = useState([]);

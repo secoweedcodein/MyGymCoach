@@ -8,8 +8,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { colors, radius, spacing } from '../../lib/theme';
+import { supabase } from '../../../lib/supabase';
+import { colors, radius, spacing } from '../../../lib/theme';
 
 export default function HistoryDetailScreen() {
   const { sessionId } = useLocalSearchParams();
