@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { deleteAdminRecipe, listAdminRecipes } from '../../../services/adminService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -30,17 +30,13 @@ export default function AdminRecipesIAScreen() {
 
   async function loadRecipes() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('recipes_ia')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setRecipes(data || []);
+    try {
+      setRecipes(await listAdminRecipes());
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudieron cargar las recetas');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   function handleDelete(recipe) {
@@ -53,16 +49,12 @@ export default function AdminRecipesIAScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            const { error } = await supabase
-              .from('recipes_ia')
-              .delete()
-              .eq('id', recipe.id);
-
-            if (error) {
-              Alert.alert('Error', error.message);
-            } else {
+            try {
+              await deleteAdminRecipe(recipe.id);
               setRecipes(prev => prev.filter(r => r.id !== recipe.id));
               Alert.alert('Eliminada', 'Receta eliminada correctamente');
+            } catch (error) {
+              Alert.alert('Error', error.message || 'No se pudo eliminar la receta');
             }
           }
         }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { searchExploreContent } from '../../../services/exploreService';
 import BottomTabBar from '../../../components/BottomTabBar';
 
 const ACCENT = '#C0FF3E';
@@ -56,40 +56,10 @@ export default function SearchScreen() {
 
   async function runSearch(q) {
     setSearching(true);
-    const like = `%${q}%`;
-    const promises = [];
-
     try {
-      const columns = 'id, title';
-      promises.push(
-        supabase.from('trends').select(columns).ilike('title', like).limit(6)
-          .then(r => ({ type: 'trend', data: r.data, error: r.error })),
-        supabase.from('public_routines').select('id, name').ilike('name', like).limit(6)
-          .then(r => ({ type: 'routine', data: r.data, error: r.error })),
-        supabase.from('recipes_ia').select('id, name').ilike('name', like).limit(6)
-          .then(r => ({ type: 'recipe_ia', data: r.data, error: r.error })),
-        supabase.from('user_recipes').select('id, recipe_name').in('status', ['approved', 'published']).ilike('recipe_name', like).limit(6)
-          .then(r => ({ type: 'user_recipe', data: r.data, error: r.error })),
-        supabase.from('articles').select('id, title').ilike('title', like).limit(6)
-          .then(r => ({ type: 'article', data: r.data, error: r.error })),
-        supabase.from('challenges').select('id, name').eq('is_official', true).ilike('name', like).limit(6)
-          .then(r => ({ type: 'challenge', data: r.data, error: r.error })),
-      );
-
-      const settled = await Promise.all(promises);
-      const flattened = [];
-      settled.forEach(group => {
-        if (group.error) return;
-        (group.data || []).forEach(item => {
-          flattened.push({
-            type: group.type,
-            id: item.id,
-            main: item.title || item.name || item.recipe_name,
-          });
-        });
-      });
-      setResults(flattened);
-    } catch {
+      setResults(await searchExploreContent(q));
+    } catch (error) {
+      console.error('[ExploreSearch] Error:', error);
       setResults([]);
     } finally {
       setSearching(false);

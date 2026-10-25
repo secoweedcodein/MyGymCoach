@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { supabase } from '../lib/supabase';
-import { loadCustomExercises } from '../src/screens/data/exercises';
+import { loadCustomExercisesList } from '../features/routines/services/exerciseService';
 import CustomSplashScreen from '../src/screens/SplashScreen';
 import { useAuth } from '../src/hooks/useAuth';
 import { getPostAuthRoute } from '../services/onboardingService';
@@ -14,7 +13,9 @@ export default function Index() {
 
   // 1. Cargar ejercicios al iniciar
   useEffect(() => {
-    loadCustomExercises(supabase);
+    loadCustomExercisesList().catch((error) => {
+      console.error('Error cargando ejercicios personalizados:', error);
+    });
   }, []);
 
   // 2. Tope de seguridad para el Splash Screen (4 segundos)

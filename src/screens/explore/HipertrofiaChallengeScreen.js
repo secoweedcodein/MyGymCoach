@@ -7,8 +7,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { getCurrentUser } from '../../../services/authService';
+import { createRoutine, deleteRoutine, findUserRoutineByName } from '../../../features/routines/services/routinesService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -76,19 +77,14 @@ export default function HipertrofiaChallengeScreen() {
 
   async function checkIfSaved() {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) {
       setLoading(false);
       return;
     }
 
     // ⚠️ Busca SOLO por este nombre único
-    const { data } = await supabase
-      .from('routines')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('name', CHALLENGE_DATA.name)
-      .maybeSingle();
+    const data = await findUserRoutineByName(user.id, CHALLENGE_DATA.name);
 
     if (data) {
       setSaved(true);
@@ -98,7 +94,7 @@ export default function HipertrofiaChallengeScreen() {
   }
 
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) {
       Alert.alert('Error', 'Debes iniciar sesión');
       return;
@@ -106,21 +102,18 @@ export default function HipertrofiaChallengeScreen() {
 
     if (saved) {
       if (routineId) {
-        const { error } = await supabase.from('routines').delete().eq('id', routineId);
-        if (error) {
-          Alert.alert('Error', error.message);
-        } else {
+        try {
+          await deleteRoutine(routineId);
           setSaved(false);
           setRoutineId(null);
           Alert.alert('Reto eliminado', 'Se eliminó de tus rutinas');
+        } catch (error) {
+          Alert.alert('Error', error.message);
         }
       }
     } else {
       try {
-        const { data: newRoutine, error } = await supabase
-          .from('routines')
-          .insert({
-            user_id: user.id,
+        const newRoutine = await createRoutine(user.id, {
             name: CHALLENGE_DATA.name, // ⚠️ Nombre único
             is_challenge: true,
             challenge_type: 'hipertrofia_avanzada', // ⚠️ Tipo diferente
@@ -128,17 +121,10 @@ export default function HipertrofiaChallengeScreen() {
             description: CHALLENGE_DATA.description,
             exercise_ids: [],
             created_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        if (error) {
-          Alert.alert('Error', error.message);
-        } else {
-          setSaved(true);
-          setRoutineId(newRoutine.id);
-          Alert.alert('¡Reto guardado!', 'Aparecerá en tu HomeScreen.');
-        }
+          });
+        setSaved(true);
+        setRoutineId(newRoutine.id);
+        Alert.alert('¡Reto guardado!', 'Aparecerá en tu HomeScreen.');
       } catch (err) {
         Alert.alert('Error', err.message);
       }

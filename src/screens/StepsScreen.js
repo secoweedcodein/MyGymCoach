@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Animated,
 } from 'react-native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { getCurrentUser } from '../../services/authService';
 import {
   checkPedometerPermission,
   subscribeToSteps,
@@ -60,7 +60,7 @@ export default function StepsScreen() {
     setLoading(true);
     try {
       // 1. Obtener usuario
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) {
         setLoading(false);
         return;

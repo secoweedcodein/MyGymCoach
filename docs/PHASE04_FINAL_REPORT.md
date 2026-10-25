@@ -84,3 +84,11 @@ Continuar con **Perfil** (src/screens/ProfileScreen.js) siguiendo el mismo patr�
 - No se verific처 el estado de la funci처n RPC `save_routine_with_exercises` en un backend remoto; no se realizaron cambios ni operaciones remotas.
 
 Validaci처n local final: `npm run validate` pas처; ESLint report처 0 errores y 0 advertencias, TypeScript pas처 y Jest pas처 con 8 suites/127 pruebas. La cobertura no se volvi처 a medir en esta ejecuci처n. La CI remota observada corresponde al commit base `61579968bc67a7d3d3abecdb50e9b1eeddf180a1`, no a estos cambios locales.
+
+## Addendum de cierre de migracion de pantallas
+
+Las pantallas de `src/screens/` dejaron de importar o consultar Supabase directamente. Se migraron las superficies activas y legacy encontradas en administracion, exploracion, historial, onboarding, perfil, rutinas, chat, calendario, pasos y escaner a sus servicios de dominio. La persistencia de ejercicios personalizados tambien se movio a `features/routines/services/exerciseService.js`; `app/index.js` usa ahora ese servicio.
+
+La busqueda `rg "supabase" src/screens` no encontro referencias al finalizar esta tanda. Los accesos a Supabase que quedan en `services/`, `features/*/services/` y `lib/` son implementaciones de la capa de datos, no accesos desde pantallas.
+
+Validacion local de esta tanda: `npm run validate` paso con ESLint sin errores ni advertencias, TypeScript sin errores y Jest con 10 suites/134 pruebas. No se verifico el RPC `save_routine_with_exercises` ni otros flujos contra Supabase remoto o dispositivo.

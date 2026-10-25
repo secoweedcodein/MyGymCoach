@@ -10,8 +10,9 @@ import {
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 
-import { supabase } from '../../lib/supabase';
 import { getUserStreak } from '../../services/streakService';
+import { getCurrentUser } from '../../services/authService';
+import { fetchWorkoutPeriodComparison } from '../../features/workout/services/workoutAnalyticsService';
 import { colors, radius, spacing, type, shadow } from '../../lib/theme';
 import { ErrorState } from '../../components/DataState';
 
@@ -59,9 +60,7 @@ export default function DashboardScreen() {
     setLoading(true);
     setError(null);
     try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) {
       setLoading(false);
       return;
@@ -70,27 +69,11 @@ export default function DashboardScreen() {
     const current = rangeFor(period, 0);
     const previous = rangeFor(period, 1);
 
-    const [{ data: currentData, error: currentError }, { data: previousData, error: previousError }] =
-      await Promise.all([
-        supabase
-          .from('workout_sessions')
-          .select('*')
-          .eq('user_id', user.id)
-          .gte('finished_at', current.start.toISOString())
-          .lte('finished_at', current.end.toISOString())
-          .order('finished_at', { ascending: true }),
-        supabase
-          .from('workout_sessions')
-          .select('id, total_volume_kg')
-          .eq('user_id', user.id)
-          .gte('finished_at', previous.start.toISOString())
-          .lte('finished_at', previous.end.toISOString()),
-      ]);
-
-    if (currentError || previousError) {
-      console.error('Error cargando stats:', currentError || previousError);
-      throw currentError || previousError;
-    }
+    const { current: currentData, previous: previousData } = await fetchWorkoutPeriodComparison(
+      user.id,
+      { start: current.start.toISOString(), end: current.end.toISOString() },
+      { start: previous.start.toISOString(), end: previous.end.toISOString() },
+    );
 
     const { currentStreak } = await getUserStreak(user.id);
 

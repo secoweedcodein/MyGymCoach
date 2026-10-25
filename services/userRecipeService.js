@@ -97,6 +97,26 @@ export async function moderateUserRecipe(id, status) {
   return data;
 }
 
+export async function listUserRecipesForModeration(status = 'pending') {
+  let query = supabase.from('user_recipes').select('*').order('created_at', { ascending: false });
+  if (status !== 'all') query = query.eq('status', status);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function approveUserRecipe(id) {
+  const { error } = await supabase.from('user_recipes').update({ status: 'approved' }).eq('id', id);
+  if (error) throw error;
+  invalidateExploreCache();
+}
+
+export async function rejectUserRecipe(id) {
+  const { error } = await supabase.from('user_recipes').delete().eq('id', id);
+  if (error) throw error;
+  invalidateExploreCache();
+}
+
 export async function attachRecipeImage(uri) {
   return uploadExploreImage(uri);
 }

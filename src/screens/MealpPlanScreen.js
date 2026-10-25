@@ -7,8 +7,9 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
 import { useAlert } from "../context/AlertContext";
+import { getCurrentUser } from '../../services/authService';
+import { copyMealPlanDayToNutrition, deleteMealPlanItem, fetchMealPlanData } from '../../features/nutrition/services/nutritionService';
 
 const ACCENT  = '#C0FF3E';
 const BG      = '#0D0D0D';
@@ -55,19 +56,15 @@ export default function MealPlanScreen() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
 
     const weekStr = toDayKey(weekStart);
 
-    const [planRes, goalsRes] = await Promise.all([
-      supabase.from('meal_plans').select('id, day_of_week, meal_type, food_name, calories, protein_g, carbs_g, fat_g, quantity_g').eq('user_id', user.id).eq('week_start', weekStr).order('day_of_week').order('meal_type'),
-      supabase.from('nutrition_goals').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).maybeSingle(),
-    ]);
-
-    if (planRes.data)  setPlan(planRes.data);
-    if (goalsRes.data) setGoals(goalsRes.data);
+    const data = await fetchMealPlanData(user.id, weekStr);
+    setPlan(data.plan);
+    setGoals(data.goals);
     setLoading(false);
   }, [weekStart]);
 
@@ -86,7 +83,7 @@ export default function MealPlanScreen() {
   }
 
   async function removePlanItem(id) {
-    await supabase.from('meal_plans').delete().eq('id', id);
+    await deleteMealPlanItem(id);
     loadAll();
   }
 
@@ -96,21 +93,12 @@ export default function MealPlanScreen() {
     if (items.length === 0) { showAlert('Día vacío', 'No hay alimentos planificados para este día.'); return; }
 
     const today = todayKey();
-    const toInsert = items.map(item => ({
-      user_id:     userId,
-      meal_type:   item.meal_type,
-      food_name:   item.food_name,
-      calories:    item.calories,
-      protein_g:   item.protein_g,
-      carbs_g:     item.carbs_g,
-      fat_g:       item.fat_g,
-      quantity_g:  100,
-      logged_date: today,
-    }));
-
-    const { error } = await supabase.from('nutrition_logs').insert(toInsert);
-    if (error) { showAlert('Error', error.message); return; }
-   showAlert('✅ Listo', 'Los alimentos del día se añadieron al log de hoy.');
+    try {
+      await copyMealPlanDayToNutrition({ userId, items, loggedDate: today });
+      showAlert('✅ Listo', 'Los alimentos del día se añadieron al log de hoy.');
+    } catch (error) {
+      showAlert('Error', error.message);
+    }
   }
 
   // Totales del día activo

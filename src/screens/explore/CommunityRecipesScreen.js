@@ -6,8 +6,8 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { listCommunityUserRecipes } from '../../../services/exploreService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -30,13 +30,7 @@ export default function CommunityRecipesScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('user_recipes')
-        .select('id, recipe_name, author_name, protein, calories, time, image_url, likes_count')
-        .in('status', ['approved', 'published'])
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setRecipes(data || []);
+      setRecipes(await listCommunityUserRecipes());
     } catch (err) {
       setError(err);
     } finally {

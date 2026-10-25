@@ -4,6 +4,7 @@ import {
   duplicateRoutineExercises,
   fetchRoutineExercises,
   fetchUserRoutines,
+  findUserRoutineByName,
   getCurrentUser,
   saveRoutineWithExercisesAtomic,
   updateRoutine,
@@ -60,6 +61,19 @@ describe('routinesService', () => {
     mockEq.mockReturnValue({ order: mockOrder });
     const res = await fetchRoutineExercises('r1');
     expect(res).toEqual([{ position: 0 }]);
+  });
+
+  test('findUserRoutineByName returns matching routine id', async () => {
+    const mockMaybeSingle = jest.fn().mockResolvedValue({ data: { id: 'r1' }, error: null });
+    const mockEqName = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockEqUser = jest.fn().mockReturnValue({ eq: mockEqName });
+    supabase.from.mockReturnValue({
+      select: jest.fn().mockReturnValue({ eq: mockEqUser }),
+    });
+
+    await expect(findUserRoutineByName('u1', 'Reto')).resolves.toEqual({ id: 'r1' });
+    expect(mockEqUser).toHaveBeenCalledWith('user_id', 'u1');
+    expect(mockEqName).toHaveBeenCalledWith('name', 'Reto');
   });
 
   test('getCurrentUser returns user', async () => {

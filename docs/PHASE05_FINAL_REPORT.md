@@ -99,3 +99,9 @@ pm run lint | **163 problems (12 errors, 151 warnings)** - preexistentes |
 Se añadieron pruebas con mocks de Supabase para perfil, historial, rutinas y nutrición, incluyendo errores, entradas inválidas, ausencia de datos y el contrato numérico de `duplicateRoutineExercises` (0 para vacío, cantidad insertada para éxito y rechazo ante error). El informe global de cobertura no incluye `features/` porque la configuración solo recolecta `lib/**/*.js` y `services/**/*.js`; por tanto, no representa la cobertura de los servicios migrados. La cobertura no se volvió a medir en la validación final.
 
 La CI está configurada con Node 20, `npm ci`, lint, typecheck y tests. La última ejecución remota observada pasó en el commit base `61579968bc67a7d3d3abecdb50e9b1eeddf180a1`; no valida los cambios locales sin commit. Quedan pendientes pruebas de sincronización fallida de la cola y flujos/UI en dispositivo.
+
+## Addendum de validacion de la migracion
+
+`npm run validate` paso localmente: ESLint con 0 errores y 0 advertencias; `tsc --noEmit` sin errores; Jest con 10 suites y 134 pruebas aprobadas. Se añadieron pruebas de servicios de exploracion y administracion, y un caso para encontrar rutinas guardadas por nombre.
+
+La medicion `npm test -- --runInBand --coverage` paso con 22.38% de statements, 20.33% de branches, 25.21% de functions y 23.35% de lines. `jest.config.js` limita el recolector a `lib/**/*.js` y `services/**/*.js`; las implementaciones de `features/` no estan incluidas, asi que esta cifra no representa la cobertura total ni la cobertura de todos los servicios migrados. Siguen pendientes las pruebas UI/E2E, sincronizacion offline y flujos con backend real.

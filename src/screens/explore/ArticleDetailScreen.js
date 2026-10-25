@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { getCurrentUser } from '../../../services/authService';
+import { getArticleDetail, getSavedArticle, saveArticle, removeSavedArticle } from '../../../services/exploreService';
 import BottomTabBar from '../../../components/BottomTabBar';
 
 const ACCENT = '#C0FF3E';
@@ -64,15 +65,9 @@ export default function ArticleDetailScreen() {
   useEffect(() => {
     if (!article) return;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) return;
-      const { data } = await supabase
-        .from('content_favorites')
-        .select('content_id')
-        .eq('user_id', user.id)
-        .eq('content_type', 'article')
-        .eq('content_id', id)
-        .maybeSingle();
+      const data = await getSavedArticle(user.id, id);
       if (data) setSaved(true);
     })();
   }, [article, id]);
@@ -81,12 +76,8 @@ export default function ArticleDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('articles')
-        .select('id, title, category, content, read_time, image_id, image_url, created_at')
-        .eq('id', id)
-        .single();
-      if (error || !data) throw error || new Error('Artículo no encontrado');
+      const data = await getArticleDetail(id);
+      if (!data) throw new Error('Artículo no encontrado');
       setArticle(data);
     } catch (err) {
       setError(err);
@@ -100,17 +91,16 @@ export default function ArticleDetailScreen() {
   }, [loadArticle]);
 
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { Alert.alert('Sesión requerida', 'Debes iniciar sesión para guardar artículos'); return; }
 
     if (saved) {
-      const { error } = await supabase
-        .from('content_favorites')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('content_type', 'article')
-        .eq('content_id', id);
-      if (error) { Alert.alert('Error', error.message); return; }
+      try {
+        await removeSavedArticle(user.id, id);
+      } catch (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
       setSaved(false);
       Alert.alert('Eliminado', 'El artículo se quitó de tus guardados');
       return;
@@ -118,12 +108,7 @@ export default function ArticleDetailScreen() {
 
     setSaving(true);
     try {
-      const { error } = await supabase.from('content_favorites').upsert({
-        user_id: user.id,
-        content_type: 'article',
-        content_id: id,
-      }, { onConflict: 'user_id,content_type,content_id' });
-      if (error) throw error;
+      await saveArticle(user.id, id);
       setSaved(true);
       Alert.alert('¡Guardado!', 'El artículo quedó en tus guardados');
     } catch (err) {

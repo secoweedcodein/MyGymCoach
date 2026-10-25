@@ -8,9 +8,9 @@ import {
   SafeAreaView,
   Animated,
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
 import { GOALS as GOAL_OPTIONS, ACTIVITY_LEVELS } from '../../lib/nutritionConstants';
 import { useAuth } from '../hooks/useAuth';
+import { upsertUserProfile } from '../../features/profile/services/profileService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -87,20 +87,15 @@ export default function OnboardingScreen() {
       if (!user) throw new Error('Usuario no autenticado');
 
       // Guardar en user_profiles
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .upsert({
+      const profile = await upsertUserProfile(user.id, {
           id: user.id,
           goal: selectedGoal,
           activity_level: selectedActivity,
           activity_level_id: selectedActivity,
           days_per_week: Number.parseInt(selectedDays, 10),
-        }, { onConflict: 'id' })
-        .select('id')
-        .maybeSingle();
+        });
 
-      if (error) throw error;
-      if (!profile) throw new Error('No existe el perfil del usuario');
+      if (!profile?.id) throw new Error('No existe el perfil del usuario');
 
       router.replace('/home');
     } catch (error) {

@@ -7,8 +7,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import { requireAdminSession } from '../../../lib/adminAuth';
+import { getCurrentUser } from '../../../services/authService';
+import { fetchUserProfile } from '../../../features/profile/services/profileService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -41,19 +42,13 @@ export default function AdminLoginScreen() {
     if (loading) return;
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) {
         Alert.alert('Inicia sesión', 'Debes iniciar sesión con tu cuenta para acceder al panel.');
         return;
       }
 
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (error) throw error;
+      const profile = await fetchUserProfile(user.id);
 
       if (profile?.role === 'admin') {
         router.replace('/admin/dashboard');

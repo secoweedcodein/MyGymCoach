@@ -2,7 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../../lib/supabase.js';
+import { getCurrentUser } from '../../services/authService';
+import { fetchCalendarWorkoutData } from '../../features/workout/services/workoutAnalyticsService';
 import { colors, radius, spacing } from '../../lib/theme.js';
 
 const TIME_FILTERS = [
@@ -24,7 +25,7 @@ export default function CalendarScreen() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) {
       setLoading(false);
       return;
@@ -46,17 +47,13 @@ export default function CalendarScreen() {
       startDate = new Date(now.getFullYear(), 0, 1).toISOString();
     }
 
-    let query = supabase
-      .from('workout_sessions')
-      .select('finished_at, total_sets, total_volume_kg')
-      .eq('user_id', user.id)
-      .not('finished_at', 'is', null);
-
-    if (startDate) {
-      query = query.gte('finished_at', startDate);
-    }
-
-    const { data: statsData } = await query;
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthStartDate = new Date(year, month, 1).toISOString();
+    const monthEndDate = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+    const { stats: statsData, month: monthData } = await fetchCalendarWorkoutData(
+      user.id, startDate, monthStartDate, monthEndDate,
+    );
 
     if (statsData) {
       const totalSets = statsData.reduce((a, s) => a + (s.total_sets || 0), 0);
@@ -65,19 +62,6 @@ export default function CalendarScreen() {
     }
 
     // 2. Obtener días de entreno para el mes visualizado en el calendario (independiente del filtro de stats)
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const monthStartDate = new Date(year, month, 1).toISOString();
-    const monthEndDate = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
-
-    const { data: monthData } = await supabase
-      .from('workout_sessions')
-      .select('finished_at')
-      .eq('user_id', user.id)
-      .not('finished_at', 'is', null)
-      .gte('finished_at', monthStartDate)
-      .lte('finished_at', monthEndDate);
-
     if (monthData) {
       const dates = new Set(monthData.map(session => {
         const d = new Date(session.finished_at);

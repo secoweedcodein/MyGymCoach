@@ -6,8 +6,10 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { getCurrentUser } from '../../../services/authService';
+import { findSavedRoutine, getTrend } from '../../../services/exploreService';
+import { createRoutine, deleteRoutine } from '../../../features/routines/services/routinesService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -49,12 +51,8 @@ export default function TrendDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('trends')
-        .select('id, title, subtitle, description, level, rating, rating_avg, users, badge, image_id, image_url, route')
-        .eq('id', id)
-        .single();
-      if (error || !data) throw error || new Error('Tendencia no encontrada');
+      const data = await getTrend(id);
+      if (!data) throw new Error('Tendencia no encontrada');
       setTrend(data);
     } catch (err) {
       setError(err);
@@ -70,25 +68,25 @@ export default function TrendDetailScreen() {
   useEffect(() => {
     if (!trend) return;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) return;
-      const { data } = await supabase.from('routines')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('name', `Tendencia: ${trend.title}`)
-        .maybeSingle();
+      const data = await findSavedRoutine(user.id, `Tendencia: ${trend.title}`);
       if (data) { setSaved(true); setRoutineId(data.id); }
     })();
   }, [trend]);
 
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { Alert.alert('Sesión requerida', 'Debes iniciar sesión para guardar rutinas'); return; }
 
     if (saved) {
       if (!routineId) return;
-      const { error } = await supabase.from('routines').delete().eq('id', routineId);
-      if (error) { Alert.alert('Error', error.message); return; }
+      try {
+        await deleteRoutine(routineId);
+      } catch (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
       setSaved(false);
       setRoutineId(null);
       Alert.alert('Eliminada', 'La tendencia se quitó de tus rutinas');
@@ -97,15 +95,12 @@ export default function TrendDetailScreen() {
 
     setSaving(true);
     try {
-      const { data: newRoutine, error } = await supabase.from('routines').insert({
-        user_id: user.id,
+      const newRoutine = await createRoutine(user.id, {
         name: `Tendencia: ${trend.title}`,
         description: trend.description || '',
         exercise_ids: [],
         created_at: new Date().toISOString(),
-      }).select().single();
-
-      if (error) throw error;
+      });
       setSaved(true);
       setRoutineId(newRoutine.id);
       Alert.alert('¡Guardada!', 'La tendencia aparecerá en tus rutinas');

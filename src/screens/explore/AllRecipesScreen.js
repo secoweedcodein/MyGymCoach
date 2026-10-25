@@ -7,7 +7,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from '../../../components/BottomTabBar';
-import { supabase } from '../../../lib/supabase';
+import { listAllRecipesIa } from '../../../services/exploreService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -35,13 +35,7 @@ export default function AllRecipesScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('recipes_ia')
-        .select('id, name, category, protein, calories, time, tags, image_url, subtitle')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setRecipes(data || []);
+      setRecipes(await listAllRecipesIa());
     } catch (err) {
       setError(err);
     } finally {

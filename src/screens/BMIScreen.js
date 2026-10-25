@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { getCurrentUser } from '../../services/authService';
+import { fetchUserProfile } from '../../features/profile/services/profileService';
 
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -138,14 +139,10 @@ export default function BMIScreen() {
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { setLoading(false); return; }
 
-    const { data } = await supabase
-      .from('user_profiles')
-      .select('full_name, weight_kg, height_cm, birth_year, goal, activity_level_id')
-      .eq('id', user.id)
-      .maybeSingle();
+    const data = await fetchUserProfile(user.id);
 
     if (data) {
       setProfile(data);

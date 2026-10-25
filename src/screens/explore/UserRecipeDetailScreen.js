@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { getCurrentUser } from '../../../services/authService';
+import { getUserRecipeDetail, getSavedRecipe, saveRecipe, removeSavedRecipe } from '../../../services/exploreService';
 import BottomTabBar from '../../../components/BottomTabBar';
 
 const ACCENT = '#C0FF3E';
@@ -30,14 +31,10 @@ export default function UserRecipeDetailScreen() {
   const loadRecipe = useCallback(async () => {
     setLoading(true);
     // ✅ Buscamos en la tabla correcta: user_recipes
-    const { data, error } = await supabase
-      .from('user_recipes')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    const data = await getUserRecipeDetail(id);
 
-    if (error || !data) {
-      console.error('Error cargando receta de usuario:', error);
+    if (!data) {
+      console.error('Error cargando receta de usuario: no encontrada');
       Alert.alert('Error', 'No se encontró la receta');
       router.back();
       return;
@@ -64,15 +61,10 @@ export default function UserRecipeDetailScreen() {
   }, [id]);
 
   const checkIfSaved = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return;
 
-    const { data } = await supabase
-      .from('saved_recipes')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('recipe_id', `user-${id}`) // Prefijo para diferenciar de las de IA
-      .maybeSingle();
+    const data = await getSavedRecipe(user.id, `user-${id}`, 'user');
 
     if (data) setSaved(true);
   }, [id]);
@@ -83,37 +75,27 @@ export default function UserRecipeDetailScreen() {
   }, [checkIfSaved, loadRecipe]);
 
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) {
       Alert.alert('Error', 'Debes iniciar sesión');
       return;
     }
 
     if (saved) {
-      const { error } = await supabase
-        .from('saved_recipes')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('recipe_id', `user-${id}`);
-
-      if (error) Alert.alert('Error', error.message);
-      else {
+      try {
+        await removeSavedRecipe(user.id, `user-${id}`, 'user');
         setSaved(false);
         Alert.alert('Receta eliminada', 'Se eliminó de tus accesos rápidos');
+      } catch (error) {
+        Alert.alert('Error', error.message);
       }
     } else {
-      const { error } = await supabase
-        .from('saved_recipes')
-        .insert({
-          user_id: user.id,
-          recipe_id: `user-${id}`,
-          recipe_type: 'user',
-        });
-
-      if (error) Alert.alert('Error', error.message);
-      else {
+      try {
+        await saveRecipe(user.id, `user-${id}`, 'user');
         setSaved(true);
         Alert.alert('¡Receta guardada!', 'Aparecerá como acceso rápido en el buscador');
+      } catch (error) {
+        Alert.alert('Error', error.message);
       }
     }
   }

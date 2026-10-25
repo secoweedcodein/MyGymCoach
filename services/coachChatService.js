@@ -6,6 +6,22 @@
  */
 import { supabase } from '../lib/supabase';
 
+export async function fetchCoachChatHistory(userId) {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('role, content')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(50);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveCoachChatMessage(userId, role, content) {
+  const { error } = await supabase.from('chat_messages').insert({ user_id: userId, role, content });
+  if (error) throw error;
+}
+
 export async function sendMessageToCoach(messages, userContext) {
   try {
     // Llamar al Edge Function (Supabase agrega el auth token automáticamente)

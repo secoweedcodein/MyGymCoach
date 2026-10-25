@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { signOut } from '../../../services/authService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -87,8 +87,7 @@ export default function AdminDashboardScreen() {
     if (signingOut) return;
     setSigningOut(true);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await signOut();
       // Navegación reactiva
     } catch (err) {
       Alert.alert('Error', err.message || 'No se pudo cerrar la sesión');

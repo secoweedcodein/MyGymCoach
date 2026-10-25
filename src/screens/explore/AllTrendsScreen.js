@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { listSeeAllTrends } from '../../../services/exploreService';
 
 const BG = '#0D0D0D';
 const SURFACE = '#161616';
@@ -36,15 +36,13 @@ export default function AllTrendsScreen() {
 
   async function loadTrends() {
     setLoading(true);
-    const { data } = await supabase
-      .from('trends')
-      .select('*')
-      .eq('is_active', true)
-      .eq('show_in_see_all', true) // ✅ Solo las marcadas
-      .order('position', { ascending: true });
-    
-    if (data) setTrends(data);
-    setLoading(false);
+    try {
+      setTrends(await listSeeAllTrends());
+    } catch (error) {
+      console.error('Error cargando tendencias:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (loading) {

@@ -2,29 +2,39 @@
 import { supabase } from '../../../lib/supabase';
 import {
   getExercise,
-  createCustomExercise,
-  loadCustomExercises,
   getAllExercises,
+  replaceCustomExercises,
 } from '../../../src/screens/data/exercises';
 
 export async function loadCustomExercisesList() {
-  try {
-    await loadCustomExercises(supabase);
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) {
+    replaceCustomExercises();
     return getAllExercises();
-  } catch (e) {
-    throw e;
   }
+
+  const { data, error } = await supabase
+    .from('custom_exercises')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  replaceCustomExercises(data || []);
+  return getAllExercises();
 }
 
 export async function createCustomExerciseForUser({ name, muscle, type }) {
-  try {
-    const created = await createCustomExercise(supabase, { name, muscle, type });
-    if (!created) throw new Error('No se pudo crear el ejercicio');
-    await loadCustomExercises(supabase);
-    return getAllExercises();
-  } catch (e) {
-    throw e;
-  }
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) throw new Error('Inicia sesión para crear ejercicios personalizados');
+  const { error } = await supabase
+    .from('custom_exercises')
+    .insert({ user_id: user.id, name, muscle, type })
+    .select()
+    .single();
+  if (error) throw error;
+  return loadCustomExercisesList();
 }
 
 export { getExercise };

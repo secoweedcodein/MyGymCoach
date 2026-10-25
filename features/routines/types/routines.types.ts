@@ -25,6 +25,12 @@ export interface RoutineExercise {
 export interface RoutinePayload {
   name: string;
   exerciseIds?: string[];
+  exercise_ids?: string[];
+  description?: string;
+  is_challenge?: boolean;
+  challenge_type?: string;
+  challenge_start_date?: string;
+  created_at?: string;
 }
 
 export interface RoutineUpdatePayload {

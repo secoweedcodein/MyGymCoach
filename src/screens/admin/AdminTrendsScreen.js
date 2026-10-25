@@ -6,7 +6,11 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import {
+  deleteAdminTrend,
+  listAdminTrends,
+  updateAdminTrend,
+} from '../../../services/adminService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -36,30 +40,22 @@ export default function AdminTrendsScreen() {
 
   async function loadTrends() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('trends')
-      .select('*')
-      .order('position', { ascending: true });
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setTrends(data || []);
+    try {
+      setTrends(await listAdminTrends());
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudieron cargar las tendencias');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function toggleActive(trend) {
     const newStatus = !trend.is_active;
-    const { error } = await supabase
-      .from('trends')
-      .update({ is_active: newStatus })
-      .eq('id', trend.id);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
+    try {
+      await updateAdminTrend(trend.id, { is_active: newStatus });
       setTrends(prev => prev.map(t => t.id === trend.id ? { ...t, is_active: newStatus } : t));
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo actualizar la tendencia');
     }
   }
 
@@ -73,16 +69,12 @@ export default function AdminTrendsScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            const { error } = await supabase
-              .from('trends')
-              .delete()
-              .eq('id', trend.id);
-
-            if (error) {
-              Alert.alert('Error', error.message);
-            } else {
+            try {
+              await deleteAdminTrend(trend.id);
               setTrends(prev => prev.filter(t => t.id !== trend.id));
               Alert.alert('Eliminada', 'Tendencia eliminada correctamente');
+            } catch (error) {
+              Alert.alert('Error', error.message || 'No se pudo eliminar la tendencia');
             }
           }
         }

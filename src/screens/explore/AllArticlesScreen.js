@@ -6,8 +6,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { listAllArticles } from '../../../services/exploreService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -36,13 +36,7 @@ export default function AllArticlesScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('articles')
-        .select('id, title, category, read_time, image_url, views_count')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setArticles(data || []);
+      setArticles(await listAllArticles());
     } catch (err) {
       setError(err);
     } finally {

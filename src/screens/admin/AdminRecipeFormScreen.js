@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { getAdminRecipe, saveAdminRecipe } from '../../../services/adminService';
 import { generateRecipe } from '../../../services/recipeGenerator';
 
 const ACCENT = '#C0FF3E';
@@ -44,13 +44,14 @@ export default function AdminRecipeFormScreen() {
 
   const loadRecipe = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('recipes_ia')
-      .select('*')
-      .eq('id', id)
-      .single();
+    let data;
+    try {
+      data = await getAdminRecipe(id);
+    } catch {
+      data = null;
+    }
 
-    if (error || !data) {
+    if (!data) {
       Alert.alert('Error', 'No se encontró la receta');
       router.back();
       return;
@@ -158,23 +159,17 @@ export default function AdminRecipeFormScreen() {
       instructions: form.steps.filter(s => s.trim()),
     };
 
-    let error;
-    if (isEditing) {
-      ({ error } = await supabase.from('recipes_ia').update(payload).eq('id', id));
-    } else {
-      ({ error } = await supabase.from('recipes_ia').insert(payload));
-    }
-
-    setSaving(false);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
+    try {
+      await saveAdminRecipe(isEditing ? id : null, payload);
+      setSaving(false);
       Alert.alert(
         '¡Éxito!',
         isEditing ? 'Receta actualizada' : 'Receta publicada',
         [{ text: 'OK', onPress: () => router.back() }]
       );
+    } catch (error) {
+      setSaving(false);
+      Alert.alert('Error', error.message);
     }
   }
 

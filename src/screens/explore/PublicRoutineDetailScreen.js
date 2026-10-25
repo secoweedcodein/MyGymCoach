@@ -6,8 +6,10 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { getCurrentUser } from '../../../services/authService';
+import { findSavedRoutine, getPublicRoutineDetail } from '../../../services/exploreService';
+import { createRoutine, deleteRoutine } from '../../../features/routines/services/routinesService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -40,24 +42,12 @@ export default function PublicRoutineDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('public_routines')
-        .select('id, name, description, exercise_ids, level, image_id, image_url, badge, rating_avg, rating_count, views_count')
-        .eq('id', id)
-        .single();
-      if (error) throw error;
+      const data = await getPublicRoutineDetail(id);
+      if (!data) throw new Error('Rutina no encontrada');
       setRoutine(data);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
-      const { data: mine, error: mineError } = await supabase
-        .from('routines')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('name', data.name)
-        .limit(1);
-      if (mineError) throw mineError;
-      setSaved((mine || []).length > 0);
+      const user = await getCurrentUser();
+      if (user) setSaved(Boolean(await findSavedRoutine(user.id, data.name)));
     } catch (err) {
       setError(err);
     } finally {
@@ -73,28 +63,20 @@ export default function PublicRoutineDetailScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const user = await getCurrentUser();
+      if (!user) throw new Error('Debes iniciar sesión');
       if (saved) {
-        const { error } = await supabase
-          .from('routines')
-          .delete()
-          .eq('user_id', userId)
-          .eq('name', routine.name);
-        if (error) throw error;
+        const savedRoutine = await findSavedRoutine(user.id, routine.name);
+        if (savedRoutine) await deleteRoutine(savedRoutine.id);
         setSaved(false);
       } else {
-        const { error } = await supabase
-          .from('routines')
-          .insert({
-            user_id: userId,
+        await createRoutine(user.id, {
             name: routine.name,
             description: routine.description || '',
             exercise_ids: routine.exercise_ids || [],
             is_challenge: false,
             created_at: new Date().toISOString(),
           });
-        if (error) throw error;
         setSaved(true);
       }
     } catch (err) {

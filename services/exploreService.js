@@ -137,6 +137,151 @@ async function run(query) {
   return withTimeout(query);
 }
 
+  export async function fetchExploreScreenSections() {
+    const [articles, trends, routines, recipes, challenges, userRecipes, featured] = await Promise.all([
+      run(supabase.from('articles').select('id, title, category, read_time, image_id, image_url').eq('is_active', true).order('created_at', { ascending: false }).limit(3)),
+      run(supabase.from('trends').select('id, title, level, rating, users, badge, image_id, image_url, route').eq('is_active', true).order('position', { ascending: true })),
+      run(supabase.from('public_routines').select('id, name, level, image_id, image_url, route, badge, rating_avg, views_count').eq('is_active', true).order('created_at', { ascending: false }).limit(4)),
+      run(supabase.from('recipes_ia').select('id, name, subtitle, protein, calories, time, image_url').eq('is_active', true).order('created_at', { ascending: false }).limit(4)),
+      run(supabase.from('challenges').select('id, name, subtitle, duration_days, participants').eq('is_official', true).order('created_at', { ascending: false }).limit(3)),
+      run(supabase.from('user_recipes').select('id, recipe_name, author_name, protein, calories, time, image_url').in('status', ['approved', 'published']).order('created_at', { ascending: false }).limit(2)),
+      run(supabase.from('featured_content').select('id, title, subtitle, image_id, image_url, route, target_id, participants')),
+    ]);
+    const failed = [articles, trends, routines, recipes, challenges, userRecipes, featured].find((result) => result.error);
+    if (failed?.error) throw failed.error;
+    return {
+      articles: articles.data || [],
+      trends: trends.data || [],
+      routines: routines.data || [],
+      recipes: recipes.data || [],
+      challenges: challenges.data || [],
+      userRecipes: userRecipes.data || [],
+      featured: featured.data || [],
+    };
+  }
+
+  export async function searchExploreContent(searchTerm) {
+    const term = typeof searchTerm === 'string' ? searchTerm.trim() : '';
+    if (term.length < 3) return [];
+    const like = `%${term}%`;
+    const groups = await Promise.all([
+      run(supabase.from('trends').select('id, title').ilike('title', like).limit(6)),
+      run(supabase.from('public_routines').select('id, name').ilike('name', like).limit(6)),
+      run(supabase.from('recipes_ia').select('id, name').ilike('name', like).limit(6)),
+      run(supabase.from('user_recipes').select('id, recipe_name').in('status', ['approved', 'published']).ilike('recipe_name', like).limit(6)),
+      run(supabase.from('articles').select('id, title').ilike('title', like).limit(6)),
+      run(supabase.from('challenges').select('id, name').eq('is_official', true).ilike('name', like).limit(6)),
+    ]);
+    const types = ['trend', 'routine', 'recipe_ia', 'user_recipe', 'article', 'challenge'];
+    groups.forEach((result) => {
+      if (result.error) logger.warn('explore.search.partial_failure', { code: result.error.code });
+    });
+    return groups.flatMap((group, index) => (group.data || []).map((item) => ({
+      type: types[index],
+      id: item.id,
+      main: item.title || item.name || item.recipe_name,
+    })));
+  }
+
+  export async function getArticleDetail(id) {
+    const { data, error } = await run(supabase.from('articles').select('*').eq('id', id).maybeSingle());
+    if (error) throw error;
+    return data;
+  }
+
+  export async function getRecipeIaDetail(id) {
+    const { data, error } = await run(supabase.from('recipes_ia').select('*').eq('id', id).maybeSingle());
+    if (error) throw error;
+    return data;
+  }
+
+  export async function getUserRecipeDetail(id) {
+    const { data, error } = await run(supabase.from('user_recipes').select('*').eq('id', id).maybeSingle());
+    if (error) throw error;
+    return data;
+  }
+
+  export async function getChallengeDetail(id) {
+    const { data, error } = await run(supabase.from('challenges').select('*').eq('id', id).maybeSingle());
+    if (error) throw error;
+    return data;
+  }
+
+  export async function findFirstOfficialHypertrophyChallenge() {
+    const { data, error } = await run(
+      supabase.from('challenges').select('id, name').eq('is_official', true)
+        .ilike('name', '%hipertrofia%').order('created_at', { ascending: true }).limit(1).maybeSingle(),
+    );
+    if (error) throw error;
+    return data;
+  }
+
+  export async function findChallengeByName(name) {
+    const { data, error } = await run(
+      supabase.from('challenges').select('id').eq('name', name).maybeSingle(),
+    );
+    if (error) throw error;
+    return data;
+  }
+
+  export async function getPublicRoutineDetail(id) {
+    const { data, error } = await run(
+      supabase.from('public_routines')
+        .select('id, name, description, exercise_ids, level, image_id, image_url, badge, rating_avg, rating_count, views_count')
+        .eq('id', id).maybeSingle(),
+    );
+    if (error) throw error;
+    return data;
+  }
+
+  export async function findSavedRoutine(userId, name) {
+    const { data, error } = await run(supabase.from('routines').select('id').eq('user_id', userId).eq('name', name).maybeSingle());
+    if (error) throw error;
+    return data;
+  }
+
+  export async function getSavedRecipe(userId, recipeId, recipeType) {
+    const { data, error } = await run(supabase.from('saved_recipes').select('id').eq('user_id', userId).eq('recipe_id', recipeId).eq('recipe_type', recipeType).maybeSingle());
+    if (error) throw error;
+    return data;
+  }
+
+  export async function saveRecipe(userId, recipeId, recipeType) {
+    const { error } = await run(supabase.from('saved_recipes').upsert({
+      user_id: userId,
+      recipe_id: recipeId,
+      recipe_type: recipeType,
+    }, { onConflict: 'user_id,recipe_id' }));
+    if (error) throw error;
+  }
+
+  export async function removeSavedRecipe(userId, recipeId, recipeType) {
+    let query = supabase.from('saved_recipes').delete().eq('user_id', userId).eq('recipe_id', recipeId);
+    if (recipeType) query = query.eq('recipe_type', recipeType);
+    const { error } = await run(query);
+    if (error) throw error;
+  }
+
+  export async function getSavedArticle(userId, articleId) {
+    const { data, error } = await run(supabase.from('content_favorites').select('content_id').eq('user_id', userId).eq('content_type', 'article').eq('content_id', articleId).maybeSingle());
+    if (error) throw error;
+    return data;
+  }
+
+  export async function saveArticle(userId, articleId) {
+    const { error } = await run(supabase.from('content_favorites').upsert({
+      user_id: userId,
+      content_type: 'article',
+      content_id: articleId,
+    }, { onConflict: 'user_id,content_type,content_id' }));
+    if (error) throw error;
+  }
+
+  export async function removeSavedArticle(userId, articleId) {
+    const { error } = await run(supabase.from('content_favorites').delete().eq('user_id', userId).eq('content_type', 'article').eq('content_id', articleId));
+    if (error) throw error;
+  }
+
 export async function loadExploreHome({ force = false } = {}) {
   const cacheKey = 'explore:home';
   if (!force) {
@@ -229,6 +374,69 @@ export async function listOfficialChallenges({ page = 0, limit = PAGE } = {}) {
   );
   if (error) throw error;
   return (data || []).map(mapChallenge);
+}
+
+export async function listAllArticles() {
+  const { data, error } = await run(
+    supabase.from('articles').select(ARTICLE_COLS).eq('is_active', true).order('created_at', { ascending: false }),
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+export async function listAllRecipesIa() {
+  const { data, error } = await run(
+    supabase.from('recipes_ia').select(RECIPE_IA_COLS).eq('is_active', true).order('created_at', { ascending: false }),
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+export async function listSeeAllTrends() {
+  const { data, error } = await run(
+    supabase.from('trends').select(TREND_COLS).eq('is_active', true)
+      .eq('show_in_see_all', true).order('position', { ascending: true }),
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+export async function listApprovedUserRecipes() {
+  const { data, error } = await run(
+    supabase.from('user_recipes').select(USER_RECIPE_COLS).eq('status', 'approved')
+      .order('created_at', { ascending: false }),
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+export async function listCommunityUserRecipes() {
+  const { data, error } = await run(
+    supabase.from('user_recipes').select(USER_RECIPE_COLS).in('status', ['approved', 'published'])
+      .order('created_at', { ascending: false }),
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+export async function listAllOfficialChallenges() {
+  const { data, error } = await run(
+    supabase.from('challenges')
+      .select('id, name, subtitle, description, duration_days, level, participants, image_id, image_url')
+      .eq('is_official', true).order('created_at', { ascending: false }),
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getExerciseOfDay() {
+  const { data, error } = await run(
+    supabase.from('featured_content')
+      .select('id, title, subtitle, image_id, image_url, target_id')
+      .eq('id', 'ejercicio_dia').maybeSingle(),
+  );
+  if (error) throw error;
+  return data;
 }
 
 export async function getTrend(id) {

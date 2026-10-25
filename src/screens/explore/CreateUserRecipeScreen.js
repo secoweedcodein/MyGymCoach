@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { submitUserRecipe } from '../../../services/userRecipeService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -44,38 +44,14 @@ export default function CreateUserRecipeScreen() {
     if (!form.steps.trim()) return Alert.alert('Error', 'Debes escribir los pasos de preparación');
 
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      Alert.alert('Error', 'Debes iniciar sesión');
+    try {
+      await submitUserRecipe(form);
       setLoading(false);
-      return;
-    }
-
-    const author = form.author_name.trim() || user.email?.split('@')[0] || 'Usuario Anónimo';
-
-    const { error } = await supabase.from('user_recipes').insert({
-      user_id: user.id,
-      author_name: author,
-      recipe_name: form.recipe_name.trim(),
-      description: `Receta creada por la comunidad. Tiempo: ${form.time}.`,
-      calories: parseInt(form.calories),
-      protein: parseInt(form.protein),
-      carbs: parseInt(form.carbs),
-      fat: parseInt(form.fat),
-      time: form.time.trim(),
-      ingredients: form.ingredients.trim(),
-      steps: form.steps.trim(),
-      status: 'pending',
-    });
-
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
       Alert.alert('¡Enviada!', 'Tu receta quedará publicada para la comunidad tras la revisión.');
       router.back();
+    } catch (error) {
+      setLoading(false);
+      Alert.alert('Error', error.message);
     }
   }
 

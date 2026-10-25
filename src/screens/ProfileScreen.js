@@ -5,7 +5,6 @@ import {
   TextInput, StyleSheet, Modal, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../../lib/supabase';
 import { useAlert } from "../context/AlertContext";
 import { useAuth } from '../hooks/useAuth';
 import BottomTabBar from '../../components/BottomTabBar';
@@ -13,6 +12,8 @@ import { exportWorkoutHistory } from '../../services/exportService';
 import { WeightChart } from '../../components/WeightChart';
 import { GOALS, ACTIVITY_LEVELS, resolveGoal, resolveActivityLevel, goalLabel } from '../../lib/nutritionConstants';
 import { calculateDailyNutrition, validateNutritionProfile } from '../../lib/nutritionCalculator';
+import { signOut } from '../../services/authService';
+import { fetchProfileDashboardData, saveProfileData } from '../../features/profile/services/profileService';
 // ── Tokens de diseño ──────────────────────────────────────────────────────────
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -121,30 +122,29 @@ export default function ProfileScreen() {
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
 
-    const [profileRes, statsRes, weekNutritionRes, goalsRes] = await Promise.all([
-      supabase.from('user_profiles').select('*').eq('id', user.id).maybeSingle(),
-      supabase.from('workout_sessions').select('total_sets, total_volume_kg').eq('user_id', user.id).not('finished_at', 'is', null),
-      supabase.from('nutrition_logs').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).gte('logged_date', daysAgoISO(7)),
-      supabase.from('nutrition_goals').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).maybeSingle(),
-    ]);
+    try {
+      const dashboard = await fetchProfileDashboardData(user.id, daysAgoISO(7));
+      if (dashboard.profile) setProfile(dashboard.profile);
 
-    if (profileRes.data) setProfile(profileRes.data);
+      const sessions = dashboard.sessions;
+      if (sessions) {
+        const workouts = sessions.length;
+        const totalSets = sessions.reduce((a, s) => a + (s.total_sets ?? 0), 0);
+        const totalVolume = sessions.reduce((a, s) => a + (s.total_volume_kg ?? 0), 0);
+        setStats({ workouts, sets: totalSets, volume: totalVolume });
+      }
 
-    if (statsRes.data) {
-      const workouts = statsRes.data.length;
-      const totalSets = statsRes.data.reduce((a, s) => a + (s.total_sets ?? 0), 0);
-      const totalVolume = statsRes.data.reduce((a, s) => a + (s.total_volume_kg ?? 0), 0);
-      setStats({ workouts, sets: totalSets, volume: totalVolume });
+      if (dashboard.nutritionLogs.length && dashboard.nutritionGoals) {
+        setNutritionStreak(calculateStreak(dashboard.nutritionLogs, dashboard.nutritionGoals));
+      } else {
+        setNutritionStreak({ currentStreak: 0, bestStreak: 0 });
+      }
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudo cargar el perfil');
+    } finally {
+      setLoading(false);
     }
-
-    // Calcular rachas de nutrición
-    if (weekNutritionRes.data && goalsRes.data) {
-      const streak = calculateStreak(weekNutritionRes.data, goalsRes.data);
-      setNutritionStreak(streak);
-    }
-
-    setLoading(false);
-  }, [user]);
+  }, [user, showAlert]);
 
   useFocusEffect(useCallback(() => { loadAll(); }, [loadAll]));
 
@@ -208,41 +208,30 @@ export default function ProfileScreen() {
       profilePayload.protein_goal = plan.protein_g;
     }
 
-    const { error: profileError } = await supabase.from('user_profiles').upsert(profilePayload);
-
-    if (profileError) {
-      setSaving(false);
-      showAlert('Error', profileError.message);
-      return;
-    }
-
-    // 2. Sincronización con Coach IA: Guardar en el historial de peso
-    if (Number.isFinite(weight)) {
-      const today = daysAgoISO(0);
-      await supabase.from('weight_logs').upsert({
-        user_id: userId,
-        weight_kg: weight,
-        logged_date: today,
-      }, { onConflict: 'user_id,logged_date' });
-    }
-
-    // 3. Actualizar metas nutricionales
-    if (plan) {
-      await supabase.from('nutrition_goals').upsert({
-        user_id: userId,
-        calories: plan.calories,
-        protein_g: plan.protein_g,
-        carbs_g: plan.carbs_g,
-        fat_g: plan.fat_g,
-        goal: editGoal,
-        activity_level: editActivity,
+    try {
+      await saveProfileData(userId, {
+        profile: profilePayload,
+        weightLog: Number.isFinite(weight) ? {
+          weight_kg: weight,
+          logged_date: daysAgoISO(0),
+        } : null,
+        nutritionGoals: plan ? {
+          calories: plan.calories,
+          protein_g: plan.protein_g,
+          carbs_g: plan.carbs_g,
+          fat_g: plan.fat_g,
+          goal: editGoal,
+          activity_level: editActivity,
+        } : null,
       });
+      setShowModal(false);
+      await loadAll();
+      showAlert('¡Guardado!', 'Tu perfil y metas se han actualizado.');
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudo guardar el perfil');
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    setShowModal(false);
-    loadAll();
-    showAlert('¡Guardado!', 'Tu perfil y metas se han actualizado.');
   }
 
   async function handleSignOut() {
@@ -252,7 +241,11 @@ export default function ProfileScreen() {
         text: 'Salir',
         style: 'destructive',
         onPress: async () => {
-          await supabase.auth.signOut();
+          try {
+            await signOut();
+          } catch (error) {
+            showAlert('Error', error.message || 'No se pudo cerrar la sesión');
+          }
           // Navegación reactiva al estado global
         },
       },

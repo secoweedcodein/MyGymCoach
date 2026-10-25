@@ -9,16 +9,26 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
 import {
   MUSCLES,
   getExercise,
-  createCustomExercise,
-  loadCustomExercises,
   getAllExercises,
 } from './data/exercises';
 import ExerciseIcon from '../../components/ExerciseIcon';
 import { useAlert } from "../context/AlertContext";
+import {
+  createRoutine,
+  deleteRoutine as deleteRoutineFromService,
+  duplicateRoutineExercises,
+  fetchRoutineExercises,
+  fetchUserRoutines,
+  getCurrentUser,
+  saveRoutineWithExercisesAtomic,
+} from '../../features/routines/services/routinesService';
+import {
+  createCustomExerciseForUser,
+  loadCustomExercisesList,
+} from '../../features/routines/services/exerciseService';
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
 const SURFACE  = '#161616';
@@ -50,33 +60,35 @@ const { showAlert } = useAlert();
   const [newExType, setNewExType]           = useState('Hipertrofia');
   const [savingCustom, setSavingCustom]     = useState(false);
 
+  const initScreen = useCallback(async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
+        setRoutines([]);
+        setAllExercises(getAllExercises());
+        return;
+      }
+      const [data, exercises] = await Promise.all([
+        fetchUserRoutines(user.id),
+        loadCustomExercisesList(),
+      ]);
+      setRoutines(data);
+      setAllExercises(exercises);
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudieron cargar las rutinas');
+    }
+  }, [showAlert]);
+
   // ── Carga inicial y en cada foco ────────────────────────────────────────────
   useFocusEffect(useCallback(() => {
     initScreen();
-  }, []));
+  }, [initScreen]));
 
   // Sempre que el paso cambie a config, subir al tope.
   useEffect(() => {
     if (step === 'config') scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
   const scrollRef = React.useRef(null);
-
-  async function initScreen() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Cargar rutinas
-    const { data } = await supabase
-      .from('routines')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    if (data) setRoutines(data);
-
-    // Cargar ejercicios custom y refrescar lista completa
-    await loadCustomExercises(supabase);
-    setAllExercises(getAllExercises());
-  }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function toggleEx(id) {
@@ -135,57 +147,50 @@ const { showAlert } = useAlert();
       return;
     }
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); showAlert('Error', 'Inicia sesión para guardar.'); return; }
-
-    const routinePayload = {
-      user_id: user.id,
-      name: name.trim(),
-      exercise_ids: selected.map(x => x.id),
-    };
-
-    let routineId = editId;
-    if (editId) {
-      const { error } = await supabase.from('routines').update(routinePayload).eq('id', editId).select('id').single();
-      if (error) { setSaving(false); showAlert('Error', error.message); return; }
-    } else {
-      const { data, error } = await supabase.from('routines').insert(routinePayload).select('id').single();
-      if (error) { setSaving(false); showAlert('Error', error.message); return; }
-      routineId = data.id;
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
+        showAlert('Error', 'Inicia sesión para guardar.');
+        return;
+      }
+      const exercises = selected.map((x, i) => ({
+        exercise_id: String(x.id),
+        exercise_name: x.name,
+        target_sets: x.sets || 1,
+        target_reps_min: x.repsMin || null,
+        target_reps_max: x.repsMax || null,
+        rest_seconds: x.rest || null,
+        rir: x.rir ?? null,
+        rpe: x.rpe ? Number(x.rpe) : null,
+        notes: x.notes?.trim() || null,
+        position: i,
+      }));
+      await saveRoutineWithExercisesAtomic({
+        routineId: editId || null,
+        userId: user.id,
+        name: name.trim(),
+        exerciseIds: selected.map(x => x.id),
+        exercises,
+      });
+      resetForm();
+      await initScreen();
+      showAlert(editId ? 'Rutina actualizada' : 'Rutina creada', 'Se guardó correctamente.');
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudo guardar la rutina');
+    } finally {
+      setSaving(false);
     }
-
-    // Persistir la programación completa (sustituye la anterior).
-    await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
-
-    const rows = selected.map((x, i) => ({
-      routine_id: routineId,
-      position: i,
-      exercise_id: String(x.id),
-      exercise_name: x.name,
-      target_sets: x.sets || 1,
-      target_reps_min: x.repsMin || null,
-      target_reps_max: x.repsMax || null,
-      rest_seconds: x.rest || null,
-      rir: x.rir ?? null,
-      rpe: x.rpe ? Number(x.rpe) : null,
-      notes: x.notes?.trim() || null,
-    }));
-    const { error: insErr } = await supabase.from('routine_exercises').insert(rows);
-    setSaving(false);
-    if (insErr) { showAlert('Error', insErr.message); return; }
-
-    resetForm();
-    initScreen();
-    showAlert(editId ? 'Rutina actualizada' : 'Rutina creada', 'Se guardó correctamente.');
   }
 
   // ── Editar rutina ───────────────────────────────────────────────────────────
   async function editRoutine(r) {
-    const { data } = await supabase
-      .from('routine_exercises')
-      .select('exercise_id, exercise_name, position, target_sets, target_reps_min, target_reps_max, rest_seconds, rir, rpe, notes')
-      .eq('routine_id', r.id)
-      .order('position', { ascending: true });
+    let data;
+    try {
+      data = await fetchRoutineExercises(r.id);
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudieron cargar los ejercicios');
+      return;
+    }
 
     const ids = r.exercise_ids || [];
     let items;
@@ -233,42 +238,24 @@ const { showAlert } = useAlert();
 
   // ── Duplicar rutina ─────────────────────────────────────────────────────────
   async function duplicateRoutine(r) {
-    const { data: rows } = await supabase
-      .from('routine_exercises')
-      .select('exercise_id, exercise_name, target_sets, target_reps_min, target_reps_max, rest_seconds, rir, rpe, notes')
-      .eq('routine_id', r.id)
-      .order('position', { ascending: true });
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const copyName = `${r.name} (copia)`;
-    const { data: newR, error: insErr } = await supabase
-      .from('routines')
-      .insert({ user_id: user.id, name: copyName, exercise_ids: r.exercise_ids || [] })
-      .select('id')
-      .single();
-    if (insErr) { showAlert('Error', insErr.message); return; }
-
-    if (Array.isArray(rows) && rows.length > 0) {
-      const newRows = rows.map((row, i) => ({
-        routine_id: newR.id,
-        position: i,
-        exercise_id: row.exercise_id,
-        exercise_name: row.exercise_name,
-        target_sets: row.target_sets,
-        target_reps_min: row.target_reps_min,
-        target_reps_max: row.target_reps_max,
-        rest_seconds: row.rest_seconds,
-        rir: row.rir,
-        rpe: row.rpe,
-        notes: row.notes,
-      }));
-      await supabase.from('routine_exercises').insert(newRows);
+    try {
+      const rows = await fetchRoutineExercises(r.id);
+      const user = await getCurrentUser();
+      if (!user) {
+        showAlert('Error', 'Inicia sesión para duplicar la rutina.');
+        return;
+      }
+      const copyName = `${r.name} (copia)`;
+      const newRoutine = await createRoutine(user.id, {
+        name: copyName,
+        exerciseIds: r.exercise_ids || [],
+      });
+      await duplicateRoutineExercises(newRoutine.id, rows);
+      await initScreen();
+      showAlert('Rutina duplicada', copyName);
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudo duplicar la rutina');
     }
-
-    initScreen();
-    showAlert('Rutina duplicada', copyName);
   }
 
   // ── Eliminar rutina ─────────────────────────────────────────────────────────
@@ -282,8 +269,12 @@ const { showAlert } = useAlert();
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('routines').delete().eq('id', id);
-            initScreen();
+            try {
+              await deleteRoutineFromService(id);
+              await initScreen();
+            } catch (error) {
+              showAlert('Error', error.message || 'No se pudo eliminar la rutina');
+            }
           },
         },
       ]
@@ -307,21 +298,19 @@ const { showAlert } = useAlert();
       return;
     }
     setSavingCustom(true);
-    const created = await createCustomExercise(supabase, {
-      name:   newExName.trim(),
-      muscle: newExMuscle,
-      type:   newExType,
-    });
-    setSavingCustom(false);
-
-    if (!created) {
-      showAlert('Error', 'No se pudo crear el ejercicio. Intenta de nuevo.');
+    try {
+      const exercises = await createCustomExerciseForUser({
+        name: newExName.trim(),
+        muscle: newExMuscle,
+        type: newExType,
+      });
+      setAllExercises(exercises);
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudo crear el ejercicio. Intenta de nuevo.');
       return;
+    } finally {
+      setSavingCustom(false);
     }
-
-    // Refrescar lista de ejercicios
-    await loadCustomExercises(supabase);
-    setAllExercises(getAllExercises());
 
     // Limpiar y cerrar modal
     setNewExName('');

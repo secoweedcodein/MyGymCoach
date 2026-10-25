@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { getAdminArticle, saveAdminArticle } from '../../../services/adminService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -43,13 +43,14 @@ export default function AdminArticleFormScreen() {
 
   const loadArticle = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('articles')
-      .select('*')
-      .eq('id', id)
-      .single();
+    let data;
+    try {
+      data = await getAdminArticle(id);
+    } catch {
+      data = null;
+    }
 
-    if (error || !data) {
+    if (!data) {
       Alert.alert('Error', 'No se encontró el artículo');
       router.back();
       return;
@@ -180,23 +181,17 @@ export default function AdminArticleFormScreen() {
       updated_at: new Date().toISOString(),
     };
 
-    let error;
-    if (isEditing) {
-      ({ error } = await supabase.from('articles').update(payload).eq('id', id));
-    } else {
-      ({ error } = await supabase.from('articles').insert(payload));
-    }
-
-    setSaving(false);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
+    try {
+      await saveAdminArticle(isEditing ? id : null, payload);
+      setSaving(false);
       Alert.alert(
         '¡Éxito!',
         isEditing ? 'Artículo actualizado' : 'Artículo publicado',
         [{ text: 'OK', onPress: () => router.back() }]
       );
+    } catch (error) {
+      setSaving(false);
+      Alert.alert('Error', error.message);
     }
   }
 

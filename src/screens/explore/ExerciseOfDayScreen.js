@@ -6,8 +6,8 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { getExerciseOfDay } from '../../../services/exploreService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -42,13 +42,7 @@ export default function ExerciseOfDayScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('featured_content')
-        .select('id, title, subtitle, image_id, image_url, target_id')
-        .eq('id', 'ejercicio_dia')
-        .maybeSingle();
-      if (error) throw error;
-      setExercise(data || null);
+      setExercise(await getExerciseOfDay());
     } catch (err) {
       setError(err);
     } finally {

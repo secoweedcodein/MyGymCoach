@@ -7,8 +7,10 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { getCurrentUser } from '../../../services/authService';
+import { findFirstOfficialHypertrophyChallenge, getChallengeDetail } from '../../../services/exploreService';
+import { createRoutine, deleteRoutine, findUserRoutineByName } from '../../../features/routines/services/routinesService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -55,25 +57,12 @@ export default function ChallengeDetailScreen() {
       let challengeId = id;
       if (!challengeId) {
         // Compat con rutas antiguas sin id: buscar el primer reto oficial
-        const { data: fallback } = await supabase
-          .from('challenges')
-          .select('id, name')
-          .eq('is_official', true)
-          .ilike('name', '%hipertrofia%')
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        challengeId = fallback?.id;
+        challengeId = (await findFirstOfficialHypertrophyChallenge())?.id;
       }
       if (!challengeId) throw new Error('Reto no encontrado');
 
-      const { data, error } = await supabase
-        .from('challenges')
-        .select('*')
-        .eq('id', challengeId)
-        .single();
-
-      if (error || !data) throw error || new Error('Reto no encontrado');
+      const data = await getChallengeDetail(challengeId);
+      if (!data) throw new Error('Reto no encontrado');
       setChallenge(data);
     } catch (error) {
       Alert.alert('❌ Error', error.message || 'No se encontró el reto', [
@@ -85,10 +74,9 @@ export default function ChallengeDetailScreen() {
   }, [id]);
 
   const checkIfSaved = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return;
-    const { data } = await supabase.from('routines').select('id')
-      .eq('user_id', user.id).eq('name', `Reto: ${challenge.name}`).maybeSingle();
+    const data = await findUserRoutineByName(user.id, `Reto: ${challenge.name}`);
     if (data) { setSaved(true); setRoutineId(data.id); }
   }, [challenge]);
 
@@ -101,13 +89,17 @@ export default function ChallengeDetailScreen() {
   }, [challenge, checkIfSaved]);
 
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { Alert.alert('❌ Error', 'Debes iniciar sesión'); return; }
 
     if (saved) {
       if (!routineId) return;
-      const { error } = await supabase.from('routines').delete().eq('id', routineId);
-      if (error) { Alert.alert('❌ Error', error.message); return; }
+      try {
+        await deleteRoutine(routineId);
+      } catch (error) {
+        Alert.alert('❌ Error', error.message);
+        return;
+      }
       setSaved(false);
       setRoutineId(null);
       Alert.alert('✅ Éxito', 'Reto eliminado de tus rutinas');
@@ -116,8 +108,7 @@ export default function ChallengeDetailScreen() {
 
     setSaving(true);
     try {
-      const { data: newRoutine, error } = await supabase.from('routines').insert({
-        user_id: user.id,
+      const newRoutine = await createRoutine(user.id, {
         name: `Reto: ${challenge.name}`,
         is_challenge: true,
         challenge_type: 'custom',
@@ -125,9 +116,7 @@ export default function ChallengeDetailScreen() {
         description: challenge.description || '',
         exercise_ids: [],
         created_at: new Date().toISOString(),
-      }).select().single();
-
-      if (error) throw error;
+      });
       setSaved(true);
       setRoutineId(newRoutine.id);
       Alert.alert('✅ Éxito', `"${challenge.name}" guardado en tus rutinas`);

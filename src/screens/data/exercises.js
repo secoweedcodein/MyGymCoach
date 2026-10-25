@@ -2,8 +2,8 @@
 //
 // ARQUITECTURA HÍBRIDA:
 //   - EXERCISES → lista base local (sin internet, siempre disponible)
-//   - getExercise(id) → busca primero en base local, luego en custom (Supabase)
-//   - loadCustomExercises() → carga ejercicios custom del usuario desde Supabase
+//   - getExercise(id) → busca primero en base local, luego en el cache custom
+//   - exerciseService administra la carga y persistencia de ejercicios custom
 //   - Los ejercicios custom tienen id tipo "custom_123" para no colisionar
 //
 // SISTEMA DE ICONOS:
@@ -225,77 +225,14 @@ export const SET_TYPES = [
 let _customExercises = [];
 
 /**
- * Carga los ejercicios custom del usuario desde Supabase.
- * Llama esto una vez al iniciar la app (en App.js o en el layout raíz).
- *
- * Tabla Supabase necesaria:
- *   custom_exercises (
- *     id          uuid primary key default gen_random_uuid(),
- *     user_id     uuid references auth.users not null,
- *     name        text not null,
- *     muscle      text not null,
- *     type        text not null default 'Hipertrofia',
- *     icon        text default 'CUS',
- *     created_at  timestamptz default now()
- *   )
- *   -- RLS: users can only see/edit their own rows
+ * Actualiza el cache local con ejercicios custom ya cargados por el servicio.
  */
-export async function loadCustomExercises(supabase) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-
-  const { data, error } = await supabase
-    .from('custom_exercises')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true });
-
-  if (error) { console.warn('loadCustomExercises error:', error.message); return; }
-
-  // Prefijamos el id con "custom_" para nunca colisionar con los IDs numéricos base
-  _customExercises = (data || []).map(e => ({
+export function replaceCustomExercises(data = []) {
+  _customExercises = data.map(e => ({
     ...e,
     id: `custom_${e.id}`,
     isCustom: true,
   }));
-}
-
-/**
- * Guarda un ejercicio custom en Supabase y lo agrega al cache local.
- * Devuelve el ejercicio creado (con id prefijado) o null si hay error.
- */
-export async function createCustomExercise(supabase, { name, muscle, type = 'Hipertrofia', icon = 'CUS' }) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data, error } = await supabase
-    .from('custom_exercises')
-    .insert({ user_id: user.id, name, muscle, type, icon })
-    .select()
-    .single();
-
-  if (error) { console.warn('createCustomExercise error:', error.message); return null; }
-
-  const newEx = { ...data, id: `custom_${data.id}`, isCustom: true };
-  _customExercises.push(newEx);
-  return newEx;
-}
-
-/**
- * Elimina un ejercicio custom.
- * Pasa el id prefijado: "custom_<uuid>"
- */
-export async function deleteCustomExercise(supabase, prefixedId) {
-  const realId = prefixedId.replace('custom_', '');
-  const { error } = await supabase
-    .from('custom_exercises')
-    .delete()
-    .eq('id', realId);
-
-  if (!error) {
-    _customExercises = _customExercises.filter(e => e.id !== prefixedId);
-  }
-  return !error;
 }
 
 /**

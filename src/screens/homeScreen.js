@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, ScrollView, RefreshControl, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase.js';
+import { signOut } from '../../services/authService';
 import BottomTabBar from '../../components/BottomTabBar';
 import { useAuth } from '../hooks/useAuth';
 import { useHomeData } from '../hooks/useHomeData';
@@ -62,7 +62,7 @@ export default function HomeScreen() {
   const handleSignOut = useCallback(() => {
     Alert.alert('Cuenta', '¿Quieres cerrar sesión?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Cerrar sesión', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: () => signOut() },
     ]);
   }, []);
 

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { deleteAdminArticle, listAdminArticles } from '../../../services/adminService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -27,17 +27,13 @@ export default function AdminArticlesScreen() {
 
   async function loadArticles() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('articles')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setArticles(data || []);
+    try {
+      setArticles(await listAdminArticles());
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudieron cargar los artículos');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   function handleDelete(article) {
@@ -50,16 +46,12 @@ export default function AdminArticlesScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            const { error } = await supabase
-              .from('articles')
-              .delete()
-              .eq('id', article.id);
-
-            if (error) {
-              Alert.alert('Error', error.message);
-            } else {
+            try {
+              await deleteAdminArticle(article.id);
               setArticles(prev => prev.filter(a => a.id !== article.id));
               Alert.alert('Eliminado', 'Artículo eliminado correctamente');
+            } catch (error) {
+              Alert.alert('Error', error.message || 'No se pudo eliminar el artículo');
             }
           }
         }

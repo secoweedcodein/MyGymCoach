@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { getCurrentUser } from '../../../services/authService';
+import { getRecipeIaDetail, getSavedRecipe, saveRecipe, removeSavedRecipe } from '../../../services/exploreService';
 import BottomTabBar from '../../../components/BottomTabBar';
 
 const ACCENT = '#C0FF3E';
@@ -41,15 +42,9 @@ export default function RecipeDetailScreen() {
   useEffect(() => {
     if (!recipe) return;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) return;
-      const { data } = await supabase
-        .from('saved_recipes')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('recipe_id', id)
-        .eq('recipe_type', 'ia')
-        .maybeSingle();
+      const data = await getSavedRecipe(user.id, id, 'ia');
       if (data) setSaved(true);
     })();
   }, [recipe, id]);
@@ -58,12 +53,8 @@ export default function RecipeDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('recipes_ia')
-        .select('id, name, subtitle, category, calories, protein, carbs_g, fat_g, time, tags, image_url, ingredients, instructions')
-        .eq('id', id)
-        .single();
-      if (error || !data) throw error || new Error('Receta no encontrada');
+      const data = await getRecipeIaDetail(id);
+      if (!data) throw new Error('Receta no encontrada');
       setRecipe(data);
     } catch (err) {
       setError(err);
@@ -81,17 +72,16 @@ export default function RecipeDetailScreen() {
   };
 
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { Alert.alert('Sesión requerida', 'Debes iniciar sesión para guardar recetas'); return; }
 
     if (saved) {
-      const { error } = await supabase
-        .from('saved_recipes')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('recipe_id', id)
-        .eq('recipe_type', 'ia');
-      if (error) { Alert.alert('Error', error.message); return; }
+      try {
+        await removeSavedRecipe(user.id, id, 'ia');
+      } catch (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
       setSaved(false);
       Alert.alert('Eliminada', 'La receta se quitó de tus favoritas');
       return;
@@ -99,14 +89,7 @@ export default function RecipeDetailScreen() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('saved_recipes')
-        .upsert({
-          user_id: user.id,
-          recipe_id: id,
-          recipe_type: 'ia',
-        }, { onConflict: 'user_id,recipe_id' });
-      if (error) throw error;
+      await saveRecipe(user.id, id, 'ia');
       setSaved(true);
       Alert.alert('¡Receta guardada!', 'Aparecerá como acceso rápido en Nutrición');
     } catch (err) {

@@ -28,6 +28,19 @@ export async function fetchRoutineExercises(routineId) {
   return data || [];
 }
 
+export async function findUserRoutineByName(userId, name) {
+  requireText(userId, 'el usuario');
+  requireText(name, 'el nombre de la rutina');
+  const { data, error } = await supabase
+    .from('routines')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('name', name)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function getCurrentUser() {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error) throw error;
@@ -41,10 +54,12 @@ export async function createRoutine(userId, payload) {
     throw new TypeError('Los ejercicios de la rutina deben ser una lista');
   }
   const routinePayload = {
+    ...payload,
     user_id: userId,
     name: payload.name?.trim(),
-    exercise_ids: payload.exerciseIds || [],
+    exercise_ids: payload.exerciseIds || payload.exercise_ids || [],
   };
+  delete routinePayload.exerciseIds;
   const { data, error } = await supabase.from('routines').insert(routinePayload).select('id').single();
   if (error) throw error;
   return data;

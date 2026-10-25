@@ -8,7 +8,10 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import BottomTabBar from '../../components/BottomTabBar';
-import { supabase } from '../../lib/supabase';
+import {
+  fetchExploreScreenSections,
+  findChallengeByName,
+} from '../../services/exploreService';
 
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
@@ -83,145 +86,58 @@ export default function ExploreScreen() {
   const [userRecipes, setUserRecipes] = useState([]);
   const [error, setError] = useState(null);
 
-  async function loadArticles() {
-    const { data, error } = await supabase
-      .from('articles')
-      .select('id, title, category, read_time, image_id, image_url')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    if (error) throw error;
-    if (data) {
-      setArticles(data.map(a => ({
-        id: a.id,
-        image: a.image_url || require('../../assets/suples.png'),
-        title: a.title,
-        category: a.category,
-        readTime: a.read_time ? `${a.read_time} min` : '5 min',
-      })));
-    }
-  }
-
-  async function loadFeatured() {
-    const { data, error } = await supabase.from('featured_content').select('id, title, subtitle, image_id, image_url, route, target_id, participants');
-    if (error) throw error;
-    if (!data) return;
-
-    // ✅ CAMBIO: Usar los nuevos IDs que definimos en el admin
-    const hero = data.find(d => d.id === 'reto_mes');
-    const ex = data.find(d => d.id === 'ejercicio_dia');
-
-    setFeatured(prev => ({
-      hero: {
-        ...(hero || prev.hero),
-        target_id: hero?.target_id || prev.hero?.target_id,
-      },
-      exercise: ex || prev.exercise,
-    }));
-  }
-
-  async function loadTrends() {
-    const { data, error } = await supabase
-      .from('trends')
-      .select('id, title, level, rating, users, badge, image_id, image_url, route')
-      .eq('is_active', true)
-      .order('position', { ascending: true });
-    if (error) throw error;
-    if (data) setTrends(data);
-  }
-
-  async function loadPublicRoutines() {
-    const { data, error } = await supabase
-      .from('public_routines')
-      .select('id, name, level, image_id, image_url, route, badge, rating_avg, views_count')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(4);
-    if (error) throw error;
-    if (data) {
-      setPublicRoutines(data.map(r => ({
-        id: r.id,
-        title: r.name,
-        level: r.level,
-        rating: r.rating_avg ?? 0,
-        users: r.views_count ? `${r.views_count}` : '0',
-        badge: r.badge,
-        image_id: r.image_id,
-        image: r.image_url,
-        route: r.route || `/explore/public-routine-detail?id=${r.id}`,
-      })));
-    }
-  }
-
-  async function loadIaRecipes() {
-    const { data, error } = await supabase
-      .from('recipes_ia')
-      .select('id, name, subtitle, protein, calories, time, image_url')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(4);
-    if (error) throw error;
-    if (data) {
-      setIaRecipes(data.map(r => ({
-        id: r.id,
-        name: r.name,
-        author: r.subtitle || 'MyGymCoach IA',
-        protein: r.protein,
-        calories: r.calories,
-        time: r.time,
-        image: r.image_url || require('../../assets/pancakes.png'),
-      })));
-    }
-  }
-
-  async function loadOfficialChallenges() {
-    const { data, error } = await supabase
-      .from('challenges')
-      .select('id, name, subtitle, duration_days, participants')
-      .eq('is_official', true)
-      .order('created_at', { ascending: false })
-      .limit(3);
-    if (error) throw error;
-    if (data) setOfficialChallenges(data);
-  }
-
-  // Cargar las últimas 2 recetas de usuario desde Supabase
-  async function loadUserRecipes() {
-    const { data, error } = await supabase
-      .from('user_recipes')
-      .select('id, recipe_name, author_name, protein, calories, time, image_url')
-      .in('status', ['approved', 'published'])
-      .order('created_at', { ascending: false })
-      .limit(2);
-
-    if (error) throw error;
-    if (data) {
-      setUserRecipes(data.map(r => ({
-        id: r.id,
-        name: r.recipe_name,
-        author: r.author_name || 'Comunidad',
-        protein: r.protein,
-        calories: r.calories,
-        time: r.time,
-        image: r.image_url || 'https://picsum.photos/seed/recipe/400/300',
-      })));
-    }
-  }
-
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([
-        loadArticles(),
-        loadTrends(),
-        loadPublicRoutines(),
-        loadIaRecipes(),
-        loadOfficialChallenges(),
-        loadUserRecipes(),
-        loadFeatured(),
-      ]);
+      const data = await fetchExploreScreenSections();
+      setArticles(data.articles.map(article => ({
+        id: article.id,
+        image: article.image_url || require('../../assets/suples.png'),
+        title: article.title,
+        category: article.category,
+        readTime: article.read_time ? `${article.read_time} min` : '5 min',
+      })));
+      setTrends(data.trends);
+      setPublicRoutines(data.routines.map(routine => ({
+        id: routine.id,
+        title: routine.name,
+        level: routine.level,
+        rating: routine.rating_avg ?? 0,
+        users: routine.views_count ? `${routine.views_count}` : '0',
+        badge: routine.badge,
+        image_id: routine.image_id,
+        image: routine.image_url,
+        route: routine.route || `/explore/public-routine-detail?id=${routine.id}`,
+      })));
+      setIaRecipes(data.recipes.map(recipe => ({
+        id: recipe.id,
+        name: recipe.name,
+        author: recipe.subtitle || 'MyGymCoach IA',
+        protein: recipe.protein,
+        calories: recipe.calories,
+        time: recipe.time,
+        image: recipe.image_url || require('../../assets/pancakes.png'),
+      })));
+      setOfficialChallenges(data.challenges);
+      setUserRecipes(data.userRecipes.map(recipe => ({
+        id: recipe.id,
+        name: recipe.recipe_name,
+        author: recipe.author_name || 'Comunidad',
+        protein: recipe.protein,
+        calories: recipe.calories,
+        time: recipe.time,
+        image: recipe.image_url || 'https://picsum.photos/seed/recipe/400/300',
+      })));
+      const hero = data.featured.find(item => item.id === 'reto_mes');
+      const exercise = data.featured.find(item => item.id === 'ejercicio_dia');
+      setFeatured(previous => ({
+        hero: {
+          ...(hero || previous.hero),
+          target_id: hero?.target_id || previous.hero?.target_id,
+        },
+        exercise: exercise || previous.exercise,
+      }));
     } catch (err) {
       console.error('[Explore] Error al cargar secciones:', err);
       setError(err);
@@ -554,11 +470,7 @@ function ContentCard({ item }) {
     } else if (titleLower.includes('hipertrofia') && titleLower.includes('30')) {
       // Buscar el reto real por nombre para abrir su detalle dinámico
       try {
-        const { data: challenge } = await supabase
-          .from('challenges')
-          .select('id')
-          .eq('name', item.title)
-          .maybeSingle();
+        const challenge = await findChallengeByName(item.title);
         router.push(challenge ? `/explore/challenge-detail?id=${challenge.id}` : '/explore/challenge-detail');
       } catch {
         router.push('/explore/challenge-detail');

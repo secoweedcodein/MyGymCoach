@@ -3,8 +3,8 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { listAllOfficialChallenges } from '../../../services/exploreService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -24,13 +24,7 @@ export default function ChallengeScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('challenges')
-        .select('id, name, subtitle, description, duration_days, level, participants, image_id, image_url')
-        .eq('is_official', true)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setChallenges(data || []);
+      setChallenges(await listAllOfficialChallenges());
     } catch (err) {
       setError(err);
     } finally {

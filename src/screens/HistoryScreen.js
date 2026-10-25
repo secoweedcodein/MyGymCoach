@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
 import { colors, radius, spacing, type, shadow } from '../../lib/theme';
+import { fetchCurrentUserHistory, deleteHistorySession } from '../../features/history/services/historyService';
 
 export default function HistoryScreen() {
   const [sessions, setSessions] = useState([]);
@@ -26,29 +26,15 @@ export default function HistoryScreen() {
   }, []);
 
   async function loadSessions() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('workout_sessions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('finished_at', { ascending: false });
-
-    if (error) {
+    try {
+      setSessions(await fetchCurrentUserHistory());
+    } catch (error) {
       console.error('Error cargando sesiones:', error);
-    } else {
-      setSessions(data || []);
+      Alert.alert('Error', error.message || 'No se pudo cargar el historial');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    setLoading(false);
-    setRefreshing(false);
   }
 
   const onRefresh = useCallback(() => {
@@ -68,14 +54,12 @@ export default function HistoryScreen() {
           onPress: async () => {
             const previous = sessions;
             setSessions((s) => s.filter((x) => x.id !== session.id));
-            const { error } = await supabase
-              .from('workout_sessions')
-              .delete()
-              .eq('id', session.id);
-            if (error) {
+            try {
+              await deleteHistorySession(session.id);
+            } catch (error) {
               console.error('Error eliminando sesión:', error);
               setSessions(previous);
-              Alert.alert('No se pudo eliminar', 'Inténtalo de nuevo.');
+              Alert.alert('No se pudo eliminar', error.message || 'Inténtalo de nuevo.');
             }
           },
         },

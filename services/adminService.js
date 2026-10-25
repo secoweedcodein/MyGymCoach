@@ -122,6 +122,53 @@ export const getFeaturedContent = async () => {
   return data || [];
 };
 
+async function fetchAdminRecord(table, id) {
+  const { data, error } = await supabase.from(table).select('*').eq('id', id).single();
+  if (error) throw error;
+  return data;
+}
+
+async function listAdminRecords(table, orderColumn, ascending = false) {
+  const { data, error } = await supabase.from(table).select('*').order(orderColumn, { ascending });
+  if (error) throw error;
+  return data || [];
+}
+
+async function deleteAdminRecord(table, id) {
+  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (error) throw error;
+}
+
+async function saveAdminRecord(table, id, payload) {
+  const result = id
+    ? await supabase.from(table).update(payload).eq('id', id)
+    : await supabase.from(table).insert(payload);
+  if (result.error) throw result.error;
+}
+
+export const listAdminArticles = () => listAdminRecords('articles', 'created_at');
+export const deleteAdminArticle = (id) => deleteAdminRecord('articles', id);
+export const listAdminRecipes = () => listAdminRecords('recipes_ia', 'created_at');
+export const deleteAdminRecipe = (id) => deleteAdminRecord('recipes_ia', id);
+export const listAdminTrends = () => listAdminRecords('trends', 'position', true);
+export const deleteAdminTrend = (id) => deleteAdminRecord('trends', id);
+export const updateAdminTrend = (id, updates) => saveAdminRecord('trends', id, updates);
+
+export const getAdminArticle = (id) => fetchAdminRecord('articles', id);
+export const saveAdminArticle = (id, payload) => saveAdminRecord('articles', id, payload);
+export const getAdminRecipe = (id) => fetchAdminRecord('recipes_ia', id);
+export const saveAdminRecipe = (id, payload) => saveAdminRecord('recipes_ia', id, payload);
+export const getAdminTrend = (id) => fetchAdminRecord('trends', id);
+export const saveAdminTrend = (id, payload) => saveAdminRecord('trends', id, payload);
+export const createAdminArticle = (payload) => createAdminRecord('articles', payload);
+export const createAdminRecipe = (payload) => createAdminRecord('recipes_ia', payload);
+
+async function createAdminRecord(table, payload) {
+  const { data, error } = await supabase.from(table).insert(payload).select('id').single();
+  if (error) throw error;
+  return data;
+}
+
 export const upsertFeaturedContent = async (contentData) => {
   const { data, error } = await supabase
     .from('featured_content')

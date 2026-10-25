@@ -7,7 +7,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import { addScannedFoodToLog } from '../../services/foodService';
 import { useAlert } from "../context/AlertContext";
-import { supabase } from '../../lib/supabase';
+import { getCurrentUser } from '../../services/authService';
 const logger = {
   debug: (...args) => console.log('[DEBUG]', ...args),
   warn: (...args) => console.warn('[WARN]', ...args),
@@ -85,9 +85,9 @@ function BarcodeScannerScreen({ userId: initialUserId, mealType: initialMealType
 
   useEffect(() => {
     if (resolvedUserId) return;
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user?.id) setResolvedUserId(data.user.id);
-    });
+    getCurrentUser()
+      .then(user => { if (user?.id) setResolvedUserId(user.id); })
+      .catch(error => console.error('Error cargando sesión para escáner:', error));
   }, [resolvedUserId]);
 
   function handleClose() {

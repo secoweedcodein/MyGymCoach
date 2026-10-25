@@ -5,9 +5,9 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { sendMessageToCoach } from '../../services/coachChatService';
+import { sendMessageToCoach, fetchCoachChatHistory, saveCoachChatMessage } from '../../services/coachChatService';
 import { runFullAnalysis, buildUserContextForChat } from '../../services/coachAnalysis';
+import { getCurrentUser } from '../../services/authService';
 
 const ACCENT  = '#C0FF3E';
 const BG      = '#0D0D0D';
@@ -43,7 +43,7 @@ export default function CoachChatScreen() {
       setLoading(true);
       setLoadError(null);
       try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) {
         setLoading(false);
         return;
@@ -56,14 +56,7 @@ export default function CoachChatScreen() {
       }
 
       // Load history
-      const { data: history, error } = await supabase
-        .from('chat_messages')
-        .select('role, content')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(50);
-
-      if (error) throw error;
+      const history = await fetchCoachChatHistory(user.id);
 
       if (history && history.length > 0) {
         setMessages(history);
@@ -81,7 +74,7 @@ export default function CoachChatScreen() {
     const message = text || input.trim();
     if (!message || loading) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     const userMsg = { role: 'user', content: message };
     const newMessages = [...messages, userMsg];
@@ -91,11 +84,7 @@ export default function CoachChatScreen() {
 
     try {
       if (user) {
-        await supabase.from('chat_messages').insert({
-          user_id: user.id,
-          role: 'user',
-          content: message
-        });
+        await saveCoachChatMessage(user.id, 'user', message);
       }
 
       const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }));
@@ -105,11 +94,7 @@ export default function CoachChatScreen() {
       setMessages(prev => [...prev, assistantMsg]);
       
       if (user) {
-        await supabase.from('chat_messages').insert({
-          user_id: user.id,
-          role: 'assistant',
-          content: reply
-        });
+        await saveCoachChatMessage(user.id, 'assistant', reply);
       }
     } catch (err) {
       const isQuota = !!(err && err.quota);

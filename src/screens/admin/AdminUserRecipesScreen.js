@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import { approveUserRecipe, listUserRecipesForModeration, rejectUserRecipe } from '../../../services/userRecipeService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -34,21 +34,11 @@ export default function AdminUserRecipesScreen() {
 
   const loadRecipes = useCallback(async () => {
     setLoading(true);
-    let query = supabase
-      .from('user_recipes')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (activeFilter !== 'all') {
-      query = query.eq('status', activeFilter);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
+    try {
+      const data = await listUserRecipesForModeration(activeFilter);
+      setRecipes(data);
+    } catch (error) {
       Alert.alert('Error', error.message);
-    } else {
-      setRecipes(data || []);
     }
     setLoading(false);
   }, [activeFilter]);
@@ -66,16 +56,12 @@ export default function AdminUserRecipesScreen() {
         {
           text: 'Aprobar',
           onPress: async () => {
-            const { error } = await supabase
-              .from('user_recipes')
-              .update({ status: 'approved' })
-              .eq('id', recipe.id);
-
-            if (error) {
-              Alert.alert('Error', error.message);
-            } else {
+            try {
+              await approveUserRecipe(recipe.id);
               setRecipes(prev => prev.map(r => r.id === recipe.id ? { ...r, status: 'approved' } : r));
               Alert.alert('Aprobada', 'La receta ahora es visible para todos los usuarios');
+            } catch (error) {
+              Alert.alert('Error', error.message);
             }
           }
         }
@@ -93,16 +79,12 @@ export default function AdminUserRecipesScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            const { error } = await supabase
-              .from('user_recipes')
-              .delete()
-              .eq('id', recipe.id);
-
-            if (error) {
-              Alert.alert('Error', error.message);
-            } else {
+            try {
+              await rejectUserRecipe(recipe.id);
               setRecipes(prev => prev.filter(r => r.id !== recipe.id));
               Alert.alert('Eliminada', 'La receta fue eliminada');
+            } catch (error) {
+              Alert.alert('Error', error.message);
             }
           }
         }

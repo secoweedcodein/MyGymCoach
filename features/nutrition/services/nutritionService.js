@@ -157,6 +157,44 @@ export async function addFoodToMealPlan({ userId, weekStart, dayOfWeek, mealType
   throwQueryError(result);
 }
 
+export async function fetchMealPlanData(userId, weekStart) {
+  requireValue(userId, 'el usuario');
+  requireValue(weekStart, 'el inicio de semana');
+  const [plan, goals] = await Promise.all([
+    supabase.from('meal_plans').select('id, day_of_week, meal_type, food_name, calories, protein_g, carbs_g, fat_g, quantity_g')
+      .eq('user_id', userId).eq('week_start', weekStart).order('day_of_week').order('meal_type'),
+    supabase.from('nutrition_goals').select('calories, protein_g, carbs_g, fat_g').eq('user_id', userId).maybeSingle(),
+  ]);
+  if (plan.error) throw plan.error;
+  if (goals.error) throw goals.error;
+  return { plan: plan.data || [], goals: goals.data || null };
+}
+
+export async function deleteMealPlanItem(itemId) {
+  requireValue(itemId, 'el alimento planificado');
+  const result = await supabase.from('meal_plans').delete().eq('id', itemId);
+  throwQueryError(result);
+}
+
+export async function copyMealPlanDayToNutrition({ userId, items, loggedDate }) {
+  requireValue(userId, 'el usuario');
+  requireValue(loggedDate, 'la fecha');
+  if (!Array.isArray(items)) throw new TypeError('Los alimentos deben ser una lista');
+  if (items.length === 0) return;
+  const result = await supabase.from('nutrition_logs').insert(items.map((item) => ({
+    user_id: userId,
+    meal_type: item.meal_type,
+    food_name: item.food_name,
+    calories: item.calories,
+    protein_g: item.protein_g,
+    carbs_g: item.carbs_g,
+    fat_g: item.fat_g,
+    quantity_g: 100,
+    logged_date: loggedDate,
+  })));
+  throwQueryError(result);
+}
+
 export async function addNutritionLogEntry({ userId, mealType, food, grams, nutrients, loggedDate }) {
   requireValue(userId, 'el usuario');
   requireValue(mealType, 'el tipo de comida');

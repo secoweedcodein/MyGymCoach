@@ -6,7 +6,14 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
+import {
+  createAdminArticle,
+  createAdminRecipe,
+  createChallenge as createChallengeRecord,
+  createPublicRoutine,
+  getAdminTrend,
+  saveAdminTrend,
+} from '../../../services/adminService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -81,11 +88,20 @@ export default function AdminTrendFormScreen() {
 
   const loadTrend = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('trends').select('*').eq('id', id).single();
+    let data;
+    try {
+      data = await getAdminTrend(id);
+    } catch (error) {
+      console.error('Error cargando tendencia:', error);
+      Alert.alert('Error', error.message || 'No se pudo cargar la tendencia');
+      setLoading(false);
+      return;
+    }
 
-    if (error || !data) {
-      Alert.alert('Error', 'No se encontró');
+    if (!data) {
+      Alert.alert('Error', 'No se encontró la tendencia');
       router.back();
+      setLoading(false);
       return;
     }
 
@@ -242,14 +258,7 @@ export default function AdminTrendFormScreen() {
       show_in_see_all: form.show_in_see_all // <- AÑADIDO AQUÍ
     };
 
-    let error;
-    if (isEditing) {
-      ({ error } = await supabase.from('trends').update(payload).eq('id', id));
-    } else {
-      ({ error } = await supabase.from('trends').insert(payload));
-    }
-
-    if (error) throw error;
+    await saveAdminTrend(isEditing ? id : null, payload);
 
     // Mensaje dinámico según si es edición o creación
     const successMessage = isEditing ? 'Actualizado correctamente' : 'Creado correctamente';
@@ -269,9 +278,8 @@ export default function AdminTrendFormScreen() {
       return null;
     }
 
-    const { data, error } = await supabase
-      .from('challenges')
-      .insert({
+    try {
+      const data = await createChallengeRecord({
         name: form.title.trim(),
         subtitle: challengeData.subtitle.trim(),
         description: challengeData.description.trim(),
@@ -289,32 +297,33 @@ export default function AdminTrendFormScreen() {
           ...d,
           exercises: d.exercises.filter(e => e.name.trim())
         })).filter(d => d.exercises.length > 0),
-      })
-      .select()
-      .single();
-
-    if (error) {
+      });
+      return `/explore/challenge-dynamic?id=${data.id}`;
+    } catch (error) {
       console.error('Error creando reto:', error);
       Alert.alert('Error al crear reto', error.message);
       return null;
     }
-
-    return `/explore/challenge-dynamic?id=${data.id}`;
   }
 
   async function createRoutine() {
     if (!routineData.description.trim()) { Alert.alert('Error', 'Descripción obligatoria'); return null; }
-    const { data, error } = await supabase.from('public_routines').insert({
+    try {
+      const data = await createPublicRoutine({
       name: form.title.trim(), description: routineData.description.trim(),
       frequency: routineData.frequency, level: form.level, image_id: form.image_id,
-    }).select().single();
-    if (error) { Alert.alert('Error', error.message); return null; }
-    return `/explore/public-routine-detail?id=${data.id}`;
+      });
+      return `/explore/public-routine-detail?id=${data.id}`;
+    } catch (error) {
+      Alert.alert('Error', error.message);
+      return null;
+    }
   }
 
   async function createArticle() {
     if (!articleData.author.trim() || !articleData.intro.trim()) { Alert.alert('Error', 'Autor e intro obligatorios'); return null; }
-    const { data, error } = await supabase.from('articles').insert({
+    try {
+      const data = await createAdminArticle({
       title: form.title.trim(),
       category: articleData.category,
       content: [
@@ -325,16 +334,20 @@ export default function AdminTrendFormScreen() {
       read_time: 5,
       image_id: form.image_id || 'suples',
       is_active: true,
-    }).select().single();
-    if (error) { Alert.alert('Error', error.message); return null; }
-    return `/explore/article-detail?id=${data.id}`;
+      });
+      return `/explore/article-detail?id=${data.id}`;
+    } catch (error) {
+      Alert.alert('Error', error.message);
+      return null;
+    }
   }
 
   async function createRecipe() {
     if (!recipeData.calories || !recipeData.protein || !recipeData.carbs || !recipeData.fat) {
       Alert.alert('Error', 'Todos los macros son obligatorios'); return null;
     }
-    const { data, error } = await supabase.from('recipes_ia').insert({
+    try {
+      const data = await createAdminRecipe({
       name: form.title.trim(), subtitle: '', category: 'Almuerzo',
       time: recipeData.time || '15 min',
       calories: parseInt(recipeData.calories), protein: parseInt(recipeData.protein),
@@ -342,9 +355,12 @@ export default function AdminTrendFormScreen() {
       tags: [],
       ingredients: recipeData.ingredients.split(',').map(i => ({ name: i.trim(), amount: '' })).filter(i => i.name),
       instructions: recipeData.steps.split('\n').filter(s => s.trim()),
-    }).select().single();
-    if (error) { Alert.alert('Error', error.message); return null; }
-    return `/explore/recipe-detail?id=${data.id}`;
+      });
+      return `/explore/recipe-detail?id=${data.id}`;
+    } catch (error) {
+      Alert.alert('Error', error.message);
+      return null;
+    }
   }
 
   if (loading) return <View style={s.loading}><ActivityIndicator size="large" color={ACCENT} /></View>;

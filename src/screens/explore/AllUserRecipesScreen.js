@@ -6,8 +6,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { listApprovedUserRecipes } from '../../../services/exploreService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -28,18 +28,13 @@ export default function AllUserRecipesScreen() {
 
   async function loadRecipes() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('user_recipes')
-      .select('*')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
+    try {
+      setRecipes(await listApprovedUserRecipes());
+    } catch (error) {
       Alert.alert('Error', error.message || 'No se pudieron cargar las recetas.');
-    } else {
-      setRecipes(data || []);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../../lib/supabase';
+import { getCurrentUser } from '../../services/authService';
 import { runFullAnalysis } from '../../services/coachAnalysis';
 import BottomTabBar from '../../components/BottomTabBar';
 
@@ -44,7 +44,7 @@ export default function CoachAIScreen() {
     let isMounted = true;
     const loadUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getCurrentUser();
         if (isMounted && user) setUserId(user.id);
       } catch (error) {
         console.error('[CoachAI] Error loading user:', error);

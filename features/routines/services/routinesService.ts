@@ -23,6 +23,13 @@ export function fetchRoutineExercises(routineId: string): Promise<RoutineExercis
   return implementation.fetchRoutineExercises(routineId);
 }
 
+export function findUserRoutineByName(
+  userId: string,
+  name: string,
+): Promise<{ id: string } | null> {
+  return implementation.findUserRoutineByName(userId, name);
+}
+
 export function getCurrentUser(): Promise<{ id: string } | null> {
   return implementation.getCurrentUser();
 }

@@ -5,10 +5,10 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { supabase } from '../../lib/supabase.js';
 import { colors, radius, spacing } from '../../lib/theme.js';
 import { useAlert } from '../context/AlertContext.js';
 import { getPostAuthRoute } from '../../services/onboardingService';
+import { signInWithPassword, signUp } from '../../services/authService';
 
 export default function AuthScreen() {
   const [email, setEmail]       = useState('');
@@ -24,13 +24,11 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const data = await signInWithPassword({ email, password });
         router.replace(await getPostAuthRoute(data.user.id));
         showAlert('Éxito', 'Sesión iniciada');
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        const data = await signUp({ email, password });
         if (data.session && data.user) {
           router.replace(await getPostAuthRoute(data.user.id));
         } else {

@@ -8,8 +8,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../lib/supabase';
 import { colors, radius, spacing } from '../../lib/theme';
+import { fetchHistoryDetail } from '../../features/history/services/historyService';
 
 export default function HistoryDetailScreen() {
   const { sessionId } = useLocalSearchParams();
@@ -18,20 +18,13 @@ export default function HistoryDetailScreen() {
   const [loading, setLoading] = useState(true);
 
   const loadWorkout = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('workout_sets')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('exercise_name', { ascending: true });
-
-    if (error) {
-      console.log(error);
+    try {
+      setSets(await fetchHistoryDetail(sessionId));
+    } catch (error) {
+      console.error('Error cargando el detalle del entrenamiento:', error);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSets(data || []);
-    setLoading(false);
   }, [sessionId]);
 
   useEffect(() => {

@@ -6,8 +6,13 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../lib/supabase';
 import BottomTabBar from '../../../components/BottomTabBar';
+import { getCurrentUser } from '../../../services/authService';
+import {
+  createRoutine,
+  deleteRoutine,
+  findUserRoutineByName,
+} from '../../../features/routines/services/routinesService';
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
@@ -362,15 +367,10 @@ export default function RoutineDetailScreen() {
 
   const checkIfSaved = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { setLoading(false); return; }
 
-    const { data } = await supabase
-      .from('routines')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('name', routineData.name)
-      .maybeSingle();
+    const data = await findUserRoutineByName(user.id, routineData.name);
 
     if (data) {
       setSaved(true);
@@ -384,40 +384,33 @@ export default function RoutineDetailScreen() {
   }, [checkIfSaved]);
 
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { Alert.alert('Error', 'Debes iniciar sesión'); return; }
 
     if (saved) {
       if (routineId) {
-        const { error } = await supabase.from('routines').delete().eq('id', routineId);
-        if (error) Alert.alert('Error', error.message);
-        else {
+        try {
+          await deleteRoutine(routineId);
           setSaved(false);
           setRoutineId(null);
           Alert.alert('Rutina eliminada', 'Se eliminó de tus rutinas');
+        } catch (error) {
+          Alert.alert('Error', error.message);
         }
       }
     } else {
       try {
-        const { data: newRoutine, error } = await supabase
-          .from('routines')
-          .insert({
-            user_id: user.id,
+        const newRoutine = await createRoutine(user.id, {
             name: routineData.name,
             is_challenge: false,
             description: routineData.description,
             exercise_ids: [],
             created_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
+          });
 
-        if (error) Alert.alert('Error', error.message);
-        else {
-          setSaved(true);
-          setRoutineId(newRoutine.id);
-          Alert.alert('¡Rutina guardada!', 'Aparecerá en tu HomeScreen.');
-        }
+        setSaved(true);
+        setRoutineId(newRoutine.id);
+        Alert.alert('¡Rutina guardada!', 'Aparecerá en tu HomeScreen.');
       } catch (err) {
         Alert.alert('Error', err.message);
       }

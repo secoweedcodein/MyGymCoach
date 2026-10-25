@@ -80,3 +80,9 @@ pm run test | **PASS** - 7 suites, 97 tests |
 - El typecheck local (`tsc --noEmit`) pasó. Sin embargo, `allowJs: true` y `checkJs: false` siguen permitiendo que JavaScript heredado no se compruebe; pantallas de exploración, administración y otros módulos no están migrados a TypeScript.
 
 No se afirma que todo el proyecto esté tipado ni que toda la arquitectura de acceso a datos esté migrada. El siguiente paso es migrar las pantallas restantes a servicios de dominio y ampliar contratos por feature, comprobando gradualmente JavaScript sin cambiar globalmente `checkJs`.
+
+## Addendum de contratos tras la migracion
+
+El contrato de rutinas ahora incluye la busqueda por usuario/nombre y los campos opcionales que se guardan para retos; la fachada TypeScript delega a la implementacion unica de `routinesService.impl.js`. El tipo de rutinas acepta `exerciseIds` y `exercise_ids` para conservar los dos formatos existentes.
+
+Se migraron las pantallas restantes a servicios y `npm run typecheck` sigue pasando. Sin embargo, las pantallas y la mayoria de servicios de la app siguen en JavaScript, y `checkJs` continua desactivado; por tanto, la consolidacion de tipos es incremental y la Fase 06 **no se declara completa para todo el repositorio**. Una ejecucion diagnostica de `tsc --noEmit --checkJs --pretty false` reporto 312 errores TypeScript en codigo JavaScript; no se activo esa comprobacion global porque requiere una migracion tipada gradual que evite correcciones masivas y de riesgo fuera de alcance.
