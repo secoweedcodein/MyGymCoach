@@ -43,7 +43,7 @@ export default function RecordToast({ record, onHide }) {
     }, 3000);
 
     return () => clearTimeout(timer.current);
-  }, [record]);
+  }, [onHide, opacity, record, translateY]);
 
   if (!record) return null;
 

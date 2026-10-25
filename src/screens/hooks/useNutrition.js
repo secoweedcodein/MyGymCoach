@@ -1,10 +1,13 @@
 // src/screens/hooks/useNutrition.js
 import { useState, useCallback } from 'react';
-import { supabase } from '../../../lib/supabase';
 import { todayKey } from '../../../lib/dateUtils';
 import { calculateDailyNutrition } from '../../../lib/nutritionCalculator';
 import { scaleNutrients } from '../../../services/foodService';
 import { sumMacros } from '../../../lib/nutritionStats';
+import {
+  addNutritionLogEntry,
+  fetchNutritionDashboard,
+} from '../../../features/nutrition/services/nutritionService';
 
 export function useNutrition(userId) {
   const [todayLog, setTodayLog] = useState([]);
@@ -15,32 +18,16 @@ export function useNutrition(userId) {
     if (!userId) return;
     const today = todayKey();
 
-    const [logsRes, goalsRes, profileRes] = await Promise.all([
-      supabase
-        .from('nutrition_logs')
-        .select('id, meal_type, food_name, food_id, barcode, calories, protein_g, carbs_g, fat_g, quantity_g')
-        .eq('user_id', userId)
-        .eq('logged_date', today),
-      supabase
-        .from('nutrition_goals')
-        .select('calories, protein_g, carbs_g, fat_g')
-        .eq('user_id', userId)
-        .maybeSingle(),
-      supabase
-        .from('user_profiles')
-        .select('weight_kg, height_cm, birth_year, goal, activity_level, activity_level_id')
-        .eq('id', userId)
-        .maybeSingle(),
-    ]);
+    const dashboard = await fetchNutritionDashboard(userId, today);
 
-    if (logsRes.data) setTodayLog(logsRes.data);
-    if (profileRes.data) setProfile(profileRes.data);
+    setTodayLog(dashboard.logs);
+    setProfile(dashboard.profile);
 
     // Si aún no hay metas guardadas, las calcula desde el perfil (sistema canónico).
-    if (goalsRes.data) {
-      setGoals(goalsRes.data);
-    } else if (profileRes.data) {
-      const computed = calculateDailyNutrition(profileRes.data);
+    if (dashboard.goals) {
+      setGoals(dashboard.goals);
+    } else if (dashboard.profile) {
+      const computed = calculateDailyNutrition(dashboard.profile);
       if (computed) setGoals(computed);
     }
   }, [userId]);
@@ -52,21 +39,20 @@ export function useNutrition(userId) {
     if (!food?.per100g || !grams) return { error: new Error('Datos del alimento inválidos') };
 
     const scaled = scaleNutrients(food, grams);
-    const { error } = await supabase.from('nutrition_logs').insert({
-      user_id:    userId,
-      meal_type:  mealType,
-      food_name:  food.name,
-      food_id:    food?.id ?? food?.food_id ?? null,
-      calories:   scaled.calories,
-      protein_g:  scaled.protein,
-      carbs_g:    scaled.carbs,
-      fat_g:      scaled.fat,
-      quantity_g: grams,
-      logged_date: todayKey(),
-    });
-
-    if (!error) loadToday();
-    return { error };
+    try {
+      await addNutritionLogEntry({
+        userId,
+        mealType,
+        food,
+        grams,
+        nutrients: scaled,
+        loggedDate: todayKey(),
+      });
+      await loadToday();
+      return { error: null };
+    } catch (error) {
+      return { error };
+    }
   }
 
   return { todayLog, goals, profile, totals, loadToday, addFood };

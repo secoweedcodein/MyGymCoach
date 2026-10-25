@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../../lib/supabase';
 import { colors, radius, spacing } from '../../../lib/theme';
+import { fetchHistoryDetail } from '../services/historyService';
 
 export default function HistoryDetailScreen() {
   const { sessionId } = useLocalSearchParams();
@@ -18,25 +19,20 @@ export default function HistoryDetailScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadWorkout();
-  }, []);
-
-  async function loadWorkout() {
-    const { data, error } = await supabase
-      .from('workout_sets')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('exercise_name', { ascending: true });
-
-    if (error) {
-      console.log(error);
+    const id = Array.isArray(sessionId) ? sessionId[0] : sessionId;
+    if (typeof id !== 'string' || !id) {
       setLoading(false);
+      Alert.alert('Error', 'No se indicó una sesión válida.');
       return;
     }
-
-    setSets(data || []);
-    setLoading(false);
-  }
+    fetchHistoryDetail(id)
+      .then(setSets)
+      .catch((error) => {
+        console.error('Error cargando detalle del entrenamiento:', error);
+        Alert.alert('Error', 'No se pudo cargar el detalle del entrenamiento.');
+      })
+      .finally(() => setLoading(false));
+  }, [sessionId]);
 
   if (loading) {
     return (

@@ -1,5 +1,5 @@
 // src/screens/explore/PublicRoutineDetailScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, ActivityIndicator, Alert,
@@ -36,11 +36,7 @@ export default function PublicRoutineDetailScreen() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadRoutine();
-  }, [id]);
-
-  async function loadRoutine() {
+  const loadRoutine = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -67,7 +63,11 @@ export default function PublicRoutineDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    loadRoutine();
+  }, [loadRoutine]);
 
   async function toggleSave() {
     if (saving) return;

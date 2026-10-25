@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -37,10 +37,6 @@ export default function DashboardScreen() {
     datasets: [{ data: [0] }],
   });
 
-  useEffect(() => {
-    loadStats();
-  }, [period]);
-
   function rangeFor(periodValue, offsetPeriods = 0) {
     // offsetPeriods = 0 -> período actual, 1 -> período anterior equivalente
     const end = new Date();
@@ -59,7 +55,7 @@ export default function DashboardScreen() {
     return { start, end };
   }
 
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -133,7 +129,11 @@ export default function DashboardScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [period]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   if (error) {
     return (

@@ -1,8 +1,8 @@
 // components/WeightChart.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet , Dimensions } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import { Dimensions } from 'react-native';
+
 import { supabase } from '../lib/supabase';
 
 export const WeightChart = ({ userId }) => {

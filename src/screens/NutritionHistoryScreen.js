@@ -1,11 +1,15 @@
 // src/screens/NutritionHistoryScreen.js
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Dimensions, Animated,
 } from 'react-native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import {
+  fetchCurrentNutritionUser,
+  fetchNutritionGoals,
+  fetchNutritionHistory,
+} from '../../features/nutrition/services/nutritionService';
 import {
   computeDailyTotals,
   computeAverages,
@@ -92,39 +96,42 @@ export default function NutritionHistoryScreen() {
 
   // Cargar datos iniciales
   useEffect(() => {
+    let active = true;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      setUserId(user.id);
-
-      const { data: goalsData } = await supabase
-        .from('nutrition_goals')
-        .select('calories, protein_g, carbs_g, fat_g')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      setGoals(goalsData || { calories: 2000, protein_g: 150, carbs_g: 250, fat_g: 70 });
+      try {
+        const user = await fetchCurrentNutritionUser();
+        if (!user) return;
+        const goalsData = await fetchNutritionGoals(user.id);
+        if (!active) return;
+        setUserId(user.id);
+        setGoals(goalsData || { calories: 2000, protein_g: 150, carbs_g: 250, fat_g: 70 });
+      } catch (error) {
+        console.error('Error cargando los objetivos nutricionales:', error);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
+    return () => { active = false; };
   }, []);
 
   // Cargar logs según período
   useEffect(() => {
     if (!userId) return;
+    let active = true;
     (async () => {
       setLoading(true);
-      const periodConfig = PERIODS.find(p => p.key === period);
-      const startDate = getDaysAgo(periodConfig.days);
-
-      const { data } = await supabase
-        .from('nutrition_logs')
-        .select('logged_date, meal_type, food_name, calories, protein_g, carbs_g, fat_g, quantity_g')
-        .eq('user_id', userId)
-        .gte('logged_date', startDate)
-        .order('logged_date', { ascending: true });
-
-      setLogs(data || []);
-      setLoading(false);
+      try {
+        const periodConfig = PERIODS.find(p => p.key === period);
+        const startDate = getDaysAgo(periodConfig.days);
+        const data = await fetchNutritionHistory(userId, startDate);
+        if (active) setLogs(data);
+      } catch (error) {
+        console.error('Error cargando el historial nutricional:', error);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
+    return () => { active = false; };
   }, [userId, period]);
 
   // ─── Cálculos en memoria (optimizados con useMemo) ─────────────────────────
@@ -420,7 +427,7 @@ function LineChart({ data, labels, goalLine, color, height }) {
     Animated.timing(animProgress, {
       toValue: 1, duration: 800, useNativeDriver: false,
     }).start();
-  }, [data]);
+  }, [data, animProgress]);
 
   const max = Math.max(...data, goalLine || 0) * 1.15 || 100;
   const min = 0;
@@ -528,7 +535,7 @@ function BarChart({ data, labels, goalLine, color, height }) {
     Animated.timing(animProgress, {
       toValue: 1, duration: 700, useNativeDriver: false,
     }).start();
-  }, [data]);
+  }, [data, animProgress]);
 
   const max = Math.max(...data, goalLine || 0) * 1.15 || 100;
   const chartHeight = height - 30;
@@ -667,7 +674,7 @@ function DonutChart({ data, size }) {
     Animated.timing(animProgress, {
       toValue: 1, duration: 900, useNativeDriver: false,
     }).start();
-  }, [data]);
+  }, [data, animProgress]);
 
   // Construir segmentos
   const segments = [];

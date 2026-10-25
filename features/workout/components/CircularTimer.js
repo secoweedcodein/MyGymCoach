@@ -1,6 +1,6 @@
 // features/workout/components/CircularTimer.js
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import { Text, Animated, StyleSheet } from 'react-native';
 
 const ACCENT = '#C0FF3E';
 const ORANGE = '#FF9500';
@@ -14,7 +14,6 @@ function fmt(s) {
 }
 
 export default function CircularTimer({ restLeft = 0, restSec = 120, running = false }) {
-  const progress = restSec > 0 ? restLeft / restSec : 1;
   const isWarning = restLeft <= 30 && restLeft > 10;
   const isDanger = restLeft <= 10;
   const timerColor = isDanger ? RED : isWarning ? ORANGE : ACCENT;

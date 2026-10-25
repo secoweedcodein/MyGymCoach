@@ -1,5 +1,5 @@
 // src/screens/explore/RecipeDetailScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, ActivityIndicator, Alert,
@@ -21,7 +21,6 @@ const ORANGE = '#FF6B3E';
 const CYAN = '#3EE5FF';
 const PINK = '#FF3EAA';
 
-const FALLBACK_IMAGE = { uri: null };
 
 function recipeImage(recipe) {
   if (recipe.image_url && typeof recipe.image_url === 'string' && recipe.image_url.startsWith('http')) {
@@ -40,10 +39,6 @@ export default function RecipeDetailScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadRecipe();
-  }, [id]);
-
-  useEffect(() => {
     if (!recipe) return;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -57,9 +52,9 @@ export default function RecipeDetailScreen() {
         .maybeSingle();
       if (data) setSaved(true);
     })();
-  }, [recipe]);
+  }, [recipe, id]);
 
-  async function loadRecipe() {
+  const loadRecipe = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -75,7 +70,11 @@ export default function RecipeDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    loadRecipe();
+  }, [loadRecipe]);
 
   const toggleIngredient = (idx) => {
     setCheckedIngredients(prev => ({ ...prev, [idx]: !prev[idx] }));

@@ -1,4 +1,4 @@
-﻿// features/routines/services/exerciseService.js
+// features/routines/services/exerciseService.js
 import { supabase } from '../../../lib/supabase';
 import {
   getExercise,

@@ -1,31 +1,59 @@
-﻿// features/routines/types/routines.types.js
-export const ROUTINE_STEPS = {
-  NAME: 'name',
-  EXERCISES: 'exercises',
-  CONFIG: 'config',
-};
-
-export const DEFAULT_EXERCISE_CONFIG = {
-  sets: 3,
-  repsMin: 8,
-  repsMax: 12,
-  rest: 90,
-  rir: 2,
-  rpe: '',
-  notes: '',
-};
-
-export function normalizeExerciseForSave(ex, index) {
-  return {
-    exercise_id: String(ex.id),
-    exercise_name: ex.name,
-    target_sets: ex.sets || 1,
-    target_reps_min: ex.repsMin ?? null,
-    target_reps_max: ex.repsMax ?? null,
-    rest_seconds: ex.rest ?? null,
-    rir: ex.rir ?? null,
-    rpe: ex.rpe ? Number(ex.rpe) : null,
-    notes: ex.notes?.trim() || null,
-    position: index,
-  };
+export interface Routine {
+  id: string;
+  user_id: string;
+  name: string;
+  exercise_ids?: string[];
+  created_at?: string;
+  updated_at?: string;
 }
+
+export interface RoutineExercise {
+  id?: string;
+  routine_id?: string;
+  position: number;
+  exercise_id: string | null;
+  exercise_name: string;
+  target_sets?: number;
+  target_reps_min?: number | null;
+  target_reps_max?: number | null;
+  rest_seconds?: number | null;
+  rir?: number | null;
+  rpe?: number | null;
+  notes?: string | null;
+}
+
+export interface RoutinePayload {
+  name: string;
+  exerciseIds?: string[];
+}
+
+export interface RoutineUpdatePayload {
+  name?: string;
+  exerciseIds?: string[];
+}
+
+export interface SaveRoutineInput {
+  routineId?: string | null;
+  userId: string;
+  name: string;
+  exerciseIds?: string[];
+  exercises?: Omit<RoutineExercise, 'id' | 'routine_id'>[];
+}
+
+export interface ExerciseConfig {
+  id: string | number;
+  name: string;
+  sets?: number;
+  repsMin?: number | null;
+  repsMax?: number | null;
+  rest?: number | null;
+  rir?: number | null;
+  rpe?: string | number | null;
+  notes?: string | null;
+}
+
+export {
+  ROUTINE_STEPS,
+  DEFAULT_EXERCISE_CONFIG,
+  normalizeExerciseForSave,
+} from './routines.types.impl.js';

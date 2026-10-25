@@ -1,8 +1,8 @@
 // src/screens/explore/UserRecipeDetailScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Dimensions, ActivityIndicator, Alert,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,20 +21,13 @@ const ORANGE = '#FF6B3E';
 const CYAN = '#3EE5FF';
 const PINK = '#FF3EAA';
 
-const { width } = Dimensions.get('window');
-
 export default function UserRecipeDetailScreen() {
   const { id } = useLocalSearchParams();
   const [recipe, setRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    loadRecipe();
-    checkIfSaved();
-  }, [id]);
-
-  async function loadRecipe() {
+  const loadRecipe = useCallback(async () => {
     setLoading(true);
     // ✅ Buscamos en la tabla correcta: user_recipes
     const { data, error } = await supabase
@@ -68,9 +61,9 @@ export default function UserRecipeDetailScreen() {
       tips: data.tips,
     });
     setLoading(false);
-  }
+  }, [id]);
 
-  async function checkIfSaved() {
+  const checkIfSaved = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -82,7 +75,12 @@ export default function UserRecipeDetailScreen() {
       .maybeSingle();
 
     if (data) setSaved(true);
-  }
+  }, [id]);
+
+  useEffect(() => {
+    loadRecipe();
+    checkIfSaved();
+  }, [checkIfSaved, loadRecipe]);
 
   async function handleSave() {
     const { data: { user } } = await supabase.auth.getUser();

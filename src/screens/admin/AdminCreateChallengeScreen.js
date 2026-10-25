@@ -1,5 +1,5 @@
 // src/screens/admin/AdminCreateChallengeScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, ActivityIndicator, Modal, Image, KeyboardAvoidingView, Platform,
@@ -25,7 +25,6 @@ const RED = '#FF453A';
 const LEVELS = ['Principiante', 'Intermedio', 'Avanzado'];
 const FREQUENCIES = ['2 días/sem', '3 días/sem', '4 días/sem', '5 días/sem', '6 días/sem'];
 const SESSION_TIMES = ['30 min', '45 min', '60 min', '75 min', '90 min'];
-const DAY_LABELS = ['Día A', 'Día B', 'Día C', 'Día D', 'Día E', 'Día F'];
 
 const CHALLENGE_IMAGES = {
   abs: require('../../../assets/wmremove-transformed.png'),
@@ -58,7 +57,7 @@ export default function AdminCreateChallengeScreen() {
   const { id, type } = useLocalSearchParams(); // id → edición, type → reto_mes | ejercicio_dia
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [challenge, setChallenge] = useState(null);
+  const [, setChallenge] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -87,11 +86,7 @@ export default function AdminCreateChallengeScreen() {
   const [exerciseModal, setExerciseModal] = useState({ visible: false, dayIndex: -1 });
   const [newExercise, setNewExercise] = useState({ name: '', sets: '', reps: '' });
 
-  useEffect(() => {
-    if (id) loadChallenge();
-  }, [id]);
-
-  const loadChallenge = async () => {
+  const loadChallenge = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getChallenge(id);
@@ -114,7 +109,7 @@ export default function AdminCreateChallengeScreen() {
       }));
 
       setChallenge(data);
-      setFormData({
+      setFormData(previous => ({
         name: data.name || '',
         subtitle: data.subtitle || '',
         description: data.description || '',
@@ -129,16 +124,20 @@ export default function AdminCreateChallengeScreen() {
             : Array.isArray(data.objectives)
             ? data.objectives.join('\n')
             : '',
-        days: days.length >= 4 ? days : formData.days,
-        phases: phases.length >= 4 ? phases : formData.phases,
-      });
+        days: days.length >= 4 ? days : previous.days,
+        phases: phases.length >= 4 ? phases : previous.phases,
+      }));
     } catch (error) {
       Alert.alert('❌ Error', error.message || 'No se pudo cargar el reto');
       router.back();
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) loadChallenge();
+  }, [id, loadChallenge]);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();

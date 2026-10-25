@@ -6,8 +6,6 @@
  */
 import { supabase } from '../lib/supabase';
 
-const MODEL = 'gpt-4o-mini'; // Usado solo para el fallback offline (sin IA)
-
 export async function sendMessageToCoach(messages, userContext) {
   try {
     // Llamar al Edge Function (Supabase agrega el auth token automáticamente)

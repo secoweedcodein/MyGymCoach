@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, Dimensions, TextInput, ActivityIndicator,
+  Image, TextInput, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,17 +12,11 @@ import { supabase } from '../../../lib/supabase';
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
 const SURFACE = '#161616';
-const SURFACE2 = '#1E1E1E';
 const BORDER = '#FFFFFF0D';
 const T1 = '#FFFFFF';
 const T2 = '#A0A0A0';
 const T3 = '#555555';
 const ORANGE = '#FF6B3E';
-const PURPLE = '#8B7CFF';
-const CYAN = '#3EE5FF';
-const PINK = '#FF3EAA';
-
-const { width } = Dimensions.get('window');
 
 const CATEGORIES = ['Todas', 'Desayuno', 'Almuerzo', 'Cena', 'Snack', 'Post-entreno'];
 

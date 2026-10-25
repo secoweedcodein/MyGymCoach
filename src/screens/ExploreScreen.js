@@ -20,8 +20,6 @@ const T2       = '#A0A0A0';
 const T3       = '#555555';
 const PURPLE   = '#8B7CFF';
 const ORANGE   = '#FF6B3E';
-const CYAN     = '#3EE5FF';
-const PINK     = '#FF3EAA';
 
 // ✅ Mapa de imágenes disponibles para tendencias
 
@@ -751,7 +749,7 @@ function FadeInUp({ children, delay = 0 }) {
       Animated.timing(opacity, { toValue: 1, duration: 420, delay, useNativeDriver: true }),
       Animated.timing(translateY, { toValue: 0, duration: 420, delay, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [delay, opacity, translateY]);
   return (
     <Animated.View style={{ opacity, transform: [{ translateY }] }}>
       {children}
@@ -770,7 +768,7 @@ function usePulse() {
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [pulse]);
   return pulse;
 }
 

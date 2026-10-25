@@ -15,7 +15,6 @@ const T1 = c.t1;
 const T2 = c.t2;
 const T3 = c.t3;
 const ACCENT = c.accent;
-const RED = '#FF453A';
 
 function resolveImage(r) {
   if (r.image_url && typeof r.image_url === 'string' && r.image_url.startsWith('http')) {

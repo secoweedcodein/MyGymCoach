@@ -89,7 +89,7 @@ export default function SearchScreen() {
         });
       });
       setResults(flattened);
-    } catch (err) {
+    } catch {
       setResults([]);
     } finally {
       setSearching(false);

@@ -3,7 +3,7 @@ import { toDayKey, todayKey } from '../../lib/dateUtils';
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
@@ -53,9 +53,7 @@ export default function MealPlanScreen() {
   const [activeDay, setActiveDay]   = useState(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1);
 
 
-  useFocusEffect(useCallback(() => { loadAll(); }, [weekStart]));
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
@@ -71,7 +69,9 @@ export default function MealPlanScreen() {
     if (planRes.data)  setPlan(planRes.data);
     if (goalsRes.data) setGoals(goalsRes.data);
     setLoading(false);
-  }
+  }, [weekStart]);
+
+  useFocusEffect(useCallback(() => { loadAll(); }, [loadAll]));
 
   function prevWeek() {
     const d = new Date(weekStart);

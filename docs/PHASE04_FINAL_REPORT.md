@@ -71,3 +71,16 @@ pm run test | **PASS** - 5 suites, 90 tests |
 Continuar con **Perfil** (src/screens/ProfileScreen.js) siguiendo el mismo patrón: crear/usar servicios en eatures/profile/, mover consultas a servicio, mantener wrapper en pp/ si aplica, validar con typecheck/test/lint. Priorizar cambios pequeños y verificables.
 
 **CONCLUSIÓN:** Migración real de RoutinesScreen completada. Pantalla delega persistencia a servicios, sin consultas directas. Comportamiento preservado, rutas compatibles, validaciones OK.
+
+## Addendum de verificación — 2026-10-24
+
+**Estado actual: PARCIAL.** La conclusión anterior no reflejaba la cobertura arquitectónica pendiente.
+
+- `features/routines/screens/RoutinesScreen.js` usa servicios para listar, guardar, duplicar y eliminar rutinas; la duplicación ya no inserta directamente desde la pantalla. La creación de ejercicios personalizados también pasa por `exerciseService`.
+- `features/profile/screens/ProfileScreen.js` delega las lecturas del panel y las escrituras del perfil, peso y metas a `profileService`.
+- `features/history/screens/HistoryScreen.js` y `HistoryDetailScreen.js` delegan historial, detalle y eliminación a `historyService`.
+- El panel nutricional, la búsqueda de alimentos y el historial nutricional ya delegan sus operaciones a `features/nutrition/services/nutritionService.js`.
+- La migración arquitectónica global sigue **PARCIAL**: permanecen accesos directos en pantallas de exploración, administración y otras pantallas legacy. No se declara que toda la app esté migrada.
+- No se verificó el estado de la función RPC `save_routine_with_exercises` en un backend remoto; no se realizaron cambios ni operaciones remotas.
+
+Validación local final: `npm run validate` pasó; ESLint reportó 0 errores y 0 advertencias, TypeScript pasó y Jest pasó con 8 suites/127 pruebas. La cobertura no se volvió a medir en esta ejecución. La CI remota observada corresponde al commit base `61579968bc67a7d3d3abecdb50e9b1eeddf180a1`, no a estos cambios locales.

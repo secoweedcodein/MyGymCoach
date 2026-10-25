@@ -57,7 +57,7 @@ export default function OnboardingScreen() {
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [step]);
+  }, [step, fadeAnim]);
 
   const goToStep = (next) => {
     Animated.timing(fadeAnim, {

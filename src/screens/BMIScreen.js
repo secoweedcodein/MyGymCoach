@@ -80,7 +80,7 @@ function BMIBar({ bmi }) {
 
   useEffect(() => {
     Animated.spring(posAnim, { toValue: pct, useNativeDriver: false, tension: 60 }).start();
-  }, [pct]);
+  }, [pct, posAnim]);
 
   return (
     <View style={bar.wrap}>
@@ -136,9 +136,7 @@ export default function BMIScreen() {
   // Animación del número grande
   const bmiAnim = useRef(new Animated.Value(0)).current;
 
-  useFocusEffect(useCallback(() => { loadProfile(); }, []));
-
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
@@ -163,7 +161,9 @@ export default function BMIScreen() {
       }
     }
     setLoading(false);
-  }
+  }, [bmiAnim]);
+
+  useFocusEffect(useCallback(() => { loadProfile(); }, [loadProfile]));
 
   if (loading) {
     return (

@@ -1,2 +1,2 @@
-﻿export * from './historyService';
+export * from './historyService';
 

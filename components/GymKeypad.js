@@ -9,7 +9,7 @@ export const GymKeypad = ({ value, onChange, onDone, onCalculatePlates }) => {
     if (value !== undefined && String(value) !== internalValue) {
       setInternalValue(String(value));
     }
-  }, [value]);
+  }, [value, internalValue]);
 
   const handlePress = (char) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

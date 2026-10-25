@@ -5,7 +5,6 @@ import {
   TextInput, StyleSheet, Modal, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from "../context/AlertContext";
 import { useAuth } from '../hooks/useAuth';
@@ -117,9 +116,7 @@ export default function ProfileScreen() {
   const [editActivity, setEditActivity] = useState('sedentary');
   const [saving, setSaving]         = useState(false);
 
-  useFocusEffect(useCallback(() => { loadAll(); }, [user]));
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
@@ -147,7 +144,9 @@ export default function ProfileScreen() {
     }
 
     setLoading(false);
-  }
+  }, [user]);
+
+  useFocusEffect(useCallback(() => { loadAll(); }, [loadAll]));
 
   function openModal() {
     setEditName(profile?.full_name ?? '');

@@ -83,3 +83,19 @@ pm run lint | **163 problems (12 errors, 151 warnings)** - preexistentes |
 5. Mantener tests actualizados al migrar más módulos
 
 **CONCLUSIÓN:** Fase 05 completada. Base de pruebas sólida para servicios críticos migrados, casos de error/casos límite cubiertos, tests deterministas con mocks, validaciones reproducibles. Sin inflar cobertura artificialmente.
+
+## Addendum de verificación — 2026-10-24
+
+**Estado actual: PARCIAL.** Los resultados anteriores quedaron obsoletos y la cobertura de escenarios no permite declarar cerrada la fase.
+
+| Comando | Resultado actual |
+|---|---|
+| `npm run lint` | PASS, 0 errores y 0 advertencias |
+| `npm run typecheck` | PASS |
+| `npm test` | PASS, 8 suites y 127 pruebas |
+| `npm run validate` | PASS; lint, typecheck y tests |
+| `npm test -- --runInBand --coverage` | PASS; 20.88% statements, 21.31% branches, 26.91% functions, 21.12% lines |
+
+Se añadieron pruebas con mocks de Supabase para perfil, historial, rutinas y nutrición, incluyendo errores, entradas inválidas, ausencia de datos y el contrato numérico de `duplicateRoutineExercises` (0 para vacío, cantidad insertada para éxito y rechazo ante error). El informe global de cobertura no incluye `features/` porque la configuración solo recolecta `lib/**/*.js` y `services/**/*.js`; por tanto, no representa la cobertura de los servicios migrados. La cobertura no se volvió a medir en la validación final.
+
+La CI está configurada con Node 20, `npm ci`, lint, typecheck y tests. La última ejecución remota observada pasó en el commit base `61579968bc67a7d3d3abecdb50e9b1eeddf180a1`; no valida los cambios locales sin commit. Quedan pendientes pruebas de sincronización fallida de la cola y flujos/UI en dispositivo.

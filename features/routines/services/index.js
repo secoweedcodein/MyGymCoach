@@ -1,2 +1,2 @@
-﻿export * from './routinesService';
+export * from './routinesService';
 

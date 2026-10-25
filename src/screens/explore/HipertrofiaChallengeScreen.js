@@ -3,7 +3,7 @@ import { todayKey } from '../../../lib/dateUtils';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, Dimensions, Alert,
+  Image, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,7 +13,6 @@ import BottomTabBar from '../../../components/BottomTabBar';
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
 const SURFACE = '#161616';
-const SURFACE2 = '#1E1E1E';
 const BORDER = '#FFFFFF0D';
 const T1 = '#FFFFFF';
 const T2 = '#A0A0A0';
@@ -22,7 +21,6 @@ const PURPLE = '#8B7CFF';
 const ORANGE = '#FF6B3E';
 const CYAN = '#3EE5FF';
 
-const { width } = Dimensions.get('window');
 
 // ⚠️ NOMBRE ÚNICO - Diferente al reto del HeroCard
 const CHALLENGE_DATA = {

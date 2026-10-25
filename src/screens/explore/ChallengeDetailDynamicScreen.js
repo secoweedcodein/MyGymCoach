@@ -1,6 +1,6 @@
 // src/screens/explore/ChallengeDetailDynamicScreen.js
 import { todayKey } from '../../../lib/dateUtils';
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, ActivityIndicator, Alert,
@@ -13,7 +13,6 @@ import BottomTabBar from '../../../components/BottomTabBar';
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
 const SURFACE = '#161616';
-const SURFACE2 = '#1E1E1E';
 const BORDER = '#FFFFFF0D';
 const T1 = '#FFFFFF';
 const T2 = '#A0A0A0';
@@ -39,29 +38,29 @@ export default function ChallengeDetailDynamicScreen() {
   const [routineId, setRoutineId] = useState(null);
   const [activeDay, setActiveDay] = useState(0);
 
-  useEffect(() => {
-    loadChallenge();
-  }, [id]);
-
-  useEffect(() => {
-    if (challenge) checkIfSaved();
-  }, [challenge]);
-
-  async function loadChallenge() {
+  const loadChallenge = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.from('challenges').select('*').eq('id', id).single();
     if (error || !data) { Alert.alert('Error', 'No se encontró el reto'); router.back(); return; }
     setChallenge(data);
     setLoading(false);
-  }
+  }, [id]);
 
-  async function checkIfSaved() {
+  const checkIfSaved = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data } = await supabase.from('routines').select('id')
       .eq('user_id', user.id).eq('name', `Reto: ${challenge.name}`).maybeSingle();
     if (data) { setSaved(true); setRoutineId(data.id); }
-  }
+  }, [challenge]);
+
+  useEffect(() => {
+    loadChallenge();
+  }, [loadChallenge]);
+
+  useEffect(() => {
+    if (challenge) checkIfSaved();
+  }, [challenge, checkIfSaved]);
 
   async function handleSave() {
     const { data: { user } } = await supabase.auth.getUser();

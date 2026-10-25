@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, Button, TouchableOpacity, 
-  ActivityIndicator, Alert, TextInput 
+  ActivityIndicator, TextInput 
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';

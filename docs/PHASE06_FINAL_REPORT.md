@@ -68,3 +68,15 @@ pm run test | **PASS** - 7 suites, 97 tests |
 5. Aprovechar tipos generados por Supabase si hay database.types.ts
 
 **CONCLUSIÓN:** Fase 06 completada. Contratos tipados para rutinas, migración incremental TS, sin romper compatibilidad, validaciones OK.
+
+## Addendum de verificación — 2026-10-24
+
+**Estado actual: PARCIAL.** Se completó la consolidación de rutinas dentro del alcance modificado, pero no se tipó ni verificó estáticamente todo el proyecto.
+
+- `features/routines/services/routinesService.impl.js` es la implementación única de las operaciones de rutina. `routinesService.js` conserva compatibilidad y `routinesService.ts` expone un contrato tipado como fachada, sin una segunda implementación divergente.
+- Los tipos de rutinas (`Routine`, `RoutineExercise`, payloads y datos de guardado) están declarados en TypeScript sin `any`; `routines.types.ts` importa las funciones runtime de una única implementación JS.
+- Los hooks JS/TS también conservan una sola implementación runtime mediante fachada.
+- Los servicios de perfil, historial y nutrición se consolidaron en sus features y se conectaron a sus pantallas, pero siguen escritos en JavaScript.
+- El typecheck local (`tsc --noEmit`) pasó. Sin embargo, `allowJs: true` y `checkJs: false` siguen permitiendo que JavaScript heredado no se compruebe; pantallas de exploración, administración y otros módulos no están migrados a TypeScript.
+
+No se afirma que todo el proyecto esté tipado ni que toda la arquitectura de acceso a datos esté migrada. El siguiente paso es migrar las pantallas restantes a servicios de dominio y ampliar contratos por feature, comprobando gradualmente JavaScript sin cambiar globalmente `checkJs`.

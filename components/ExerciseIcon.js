@@ -12,7 +12,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MUSCLE_COLORS } from '../src/screens/data/exercises';
-import { getAllExercises } from '../src/screens/data/exercises.js';
+
 
 const SIZES = {
   sm: { box: 32, font: 9  },

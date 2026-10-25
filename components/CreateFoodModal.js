@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
-  ScrollView, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform
+  ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { createFood, findSimilarFoods, getFoodByBarcodeHybrid, FOOD_CATEGORIES } from '../services/foodService';
@@ -9,7 +9,6 @@ import AppAlert from "../components/AppAlert";
 
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
-const SURFACE = '#161616';
 const SRF2 = '#1E1E1E';
 const BORDER = '#FFFFFF0D';
 const BORDER2 = '#FFFFFF18';
@@ -118,12 +117,8 @@ const [alertType,setAlertType]=useState("info");
 "warning"
 );
       }
-    } catch (err) {
-      showAlert(
-"Error",
-"No se pudo buscar el producto.",
-"error"
-);
+    } catch {
+      showAlert('Error', 'No se pudo buscar el producto. Intenta de nuevo.', 'error');
     } finally {
       setLoading(false);
     }
@@ -164,7 +159,7 @@ const [alertType,setAlertType]=useState("info");
         showAlert('Error', result.error || 'No se pudo crear el alimento');
       }
     } catch (err) {
-      showAlert('Error', 'Ocurrió un error al guardar');
+      showAlert('Error', err?.message || 'Ocurrió un error al guardar');
     } finally {
       setSaving(false);
     }

@@ -1,5 +1,5 @@
 // src/screens/explore/ArticleDetailScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, ActivityIndicator, Alert,
@@ -12,7 +12,6 @@ import BottomTabBar from '../../../components/BottomTabBar';
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
 const SURFACE = '#161616';
-const SURFACE2 = '#1E1E1E';
 const BORDER = '#FFFFFF0D';
 const T1 = '#FFFFFF';
 const T2 = '#A0A0A0';
@@ -49,7 +48,7 @@ function formatDate(iso) {
   try {
     const d = new Date(iso);
     return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -61,10 +60,6 @@ export default function ArticleDetailScreen() {
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    loadArticle();
-  }, [id]);
 
   useEffect(() => {
     if (!article) return;
@@ -80,9 +75,9 @@ export default function ArticleDetailScreen() {
         .maybeSingle();
       if (data) setSaved(true);
     })();
-  }, [article]);
+  }, [article, id]);
 
-  async function loadArticle() {
+  const loadArticle = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -98,7 +93,11 @@ export default function ArticleDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    loadArticle();
+  }, [loadArticle]);
 
   async function handleSave() {
     const { data: { user } } = await supabase.auth.getUser();

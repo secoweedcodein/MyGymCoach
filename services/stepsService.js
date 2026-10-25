@@ -7,7 +7,7 @@ import { todayKey } from '../lib/dateUtils';
 let Pedometer = null;
 try {
   Pedometer = require('expo-pedometer').Pedometer;
-} catch (e) {
+} catch {
   console.warn("⚠️ Advertencia: El módulo nativo ExpoPedometer no está disponible en este entorno.");
 }
 

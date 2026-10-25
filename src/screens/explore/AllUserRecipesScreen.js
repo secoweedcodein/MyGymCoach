@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,7 +34,11 @@ export default function AllUserRecipesScreen() {
       .eq('status', 'approved')
       .order('created_at', { ascending: false });
     
-    if (data) setRecipes(data);
+    if (error) {
+      Alert.alert('Error', error.message || 'No se pudieron cargar las recetas.');
+    } else {
+      setRecipes(data || []);
+    }
     setLoading(false);
   }
 

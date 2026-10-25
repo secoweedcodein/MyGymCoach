@@ -3,21 +3,30 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, Modal,
+  StyleSheet, Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { supabase } from '../../../lib/supabase';
 import {
   MUSCLES,
   getExercise,
-  createCustomExercise,
-  loadCustomExercises,
   getAllExercises,
 } from '../../../src/screens/data/exercises';
-import { colors, radius, spacing } from '../../../lib/theme';
 import ExerciseIcon from '../../../components/ExerciseIcon';
-import { useAlert } from "../../../src/context/AlertContext";
+import { useAlert } from '../../../src/context/AlertContext';
+import {
+  createRoutine,
+  deleteRoutine as deleteRoutineFromService,
+  duplicateRoutineExercises,
+  fetchRoutineExercises,
+  fetchUserRoutines,
+  getCurrentUser,
+  saveRoutineWithExercisesAtomic,
+} from '../services/routinesService';
+import {
+  createCustomExerciseForUser,
+  loadCustomExercisesList,
+} from '../services/exerciseService';
 const ACCENT   = '#C0FF3E';
 const BG       = '#0D0D0D';
 const SURFACE  = '#161616';
@@ -48,23 +57,13 @@ const { showAlert } = useAlert();
   const [newExType, setNewExType]           = useState('Hipertrofia');
   const [savingCustom, setSavingCustom]     = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    let mounted = true;
-    (async () => { if (mounted) await initScreen(); })();
-    return () => { mounted = false; };
-  }, []));
-
   useEffect(() => {
     if (step === 'config') scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
   const scrollRef = React.useRef(null);
 
-  const [initError, setInitError] = useState(null);
-  async function initScreen() {
+  const initScreen = useCallback(async () => {
     try {
-      setInitError(null);
-      const { getCurrentUser, fetchUserRoutines } = await import('../services/routinesService');
-      const { loadCustomExercisesList } = await import('../services/exerciseService');
       const user = await getCurrentUser();
       if (!user) {
         setRoutines([]);
@@ -78,9 +77,13 @@ const { showAlert } = useAlert();
       const list = await loadCustomExercisesList();
       setAllExercises(list);
     } catch (e) {
-      setInitError(e?.message || 'Error al cargar rutinas');
+      showAlert('Error', e?.message || 'Error al cargar rutinas');
     }
-  }
+  }, [showAlert]);
+
+  useFocusEffect(useCallback(() => {
+    initScreen();
+  }, [initScreen]));
 
   function toggleEx(id) {
     setSelected(prev => {
@@ -139,7 +142,6 @@ const { showAlert } = useAlert();
     }
     setSaving(true);
     try {
-      const { getCurrentUser, saveRoutineWithExercisesAtomic } = await import('../services/routinesService');
       const user = await getCurrentUser();
       if (!user) {
         showAlert('Error', 'Inicia sesi�n para guardar.');
@@ -179,7 +181,6 @@ const { showAlert } = useAlert();
   }
   // ── Editar rutina ───────────────────────────────────────────────────────────
   async function editRoutine(r) {
-    const { fetchRoutineExercises } = await import('../services/routinesService');
     const data = await fetchRoutineExercises(r.id);
 
     const ids = r.exercise_ids || [];
@@ -228,44 +229,25 @@ const { showAlert } = useAlert();
 
   // ── Duplicar rutina ─────────────────────────────────────────────────────────
   async function duplicateRoutine(r) {
-    const { fetchRoutineExercises, getCurrentUser, createRoutine, insertRoutineExercises } = await import('../services/routinesService');
-    const rows = await fetchRoutineExercises(r.id);
-
-    const user = await getCurrentUser();
-    if (!user) return;
-
-    const copyName = `${r.name} (copia)`;
-    const { data: newR, error: insErr } = await supabase
-      .from('routines')
-      .insert({ user_id: user.id, name: copyName, exercise_ids: r.exercise_ids || [] })
-      .select('id')
-      .single();
-    if (insErr) { showAlert('Error', insErr.message); return; }
-
-    if (Array.isArray(rows) && rows.length > 0) {
-      const newRows = rows.map((row, i) => ({
-        routine_id: newR.id,
-        position: i,
-        exercise_id: row.exercise_id,
-        exercise_name: row.exercise_name,
-        target_sets: row.target_sets,
-        target_reps_min: row.target_reps_min,
-        target_reps_max: row.target_reps_max,
-        rest_seconds: row.rest_seconds,
-        rir: row.rir,
-        rpe: row.rpe,
-        notes: row.notes,
-      }));
-      try {
-        await insertRoutineExercises(newRows);
-      } catch (e) {
-        showAlert('Error', e?.message || 'No se pudo duplicar ejercicios');
+    try {
+      const rows = await fetchRoutineExercises(r.id);
+      const user = await getCurrentUser();
+      if (!user) {
+        showAlert('Error', 'Inicia sesión para duplicar rutinas.');
         return;
       }
-    }
 
-    initScreen();
-    showAlert('Rutina duplicada', copyName);
+      const copyName = `${r.name} (copia)`;
+      const newRoutine = await createRoutine(user.id, {
+        name: copyName,
+        exerciseIds: r.exercise_ids || [],
+      });
+      await duplicateRoutineExercises(newRoutine.id, rows);
+      await initScreen();
+      showAlert('Rutina duplicada', copyName);
+    } catch (e) {
+      showAlert('Error', e?.message || 'No se pudo duplicar la rutina');
+    }
   }
 
   // ── Eliminar rutina ─────────────────────────────────────────────────────────
@@ -279,9 +261,12 @@ const { showAlert } = useAlert();
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            const { deleteRoutine } = await import('../services/routinesService');
-              await deleteRoutine(id);
-            initScreen();
+            try {
+              await deleteRoutineFromService(id);
+              await initScreen();
+            } catch (e) {
+              showAlert('Error', e?.message || 'No se pudo eliminar la rutina');
+            }
           },
         },
       ]
@@ -305,21 +290,19 @@ const { showAlert } = useAlert();
       return;
     }
     setSavingCustom(true);
-    const created = await createCustomExercise(supabase, {
-      name:   newExName.trim(),
-      muscle: newExMuscle,
-      type:   newExType,
-    });
-    setSavingCustom(false);
-
-    if (!created) {
-      showAlert('Error', 'No se pudo crear el ejercicio. Intenta de nuevo.');
+    try {
+      const exercises = await createCustomExerciseForUser({
+        name: newExName.trim(),
+        muscle: newExMuscle,
+        type: newExType,
+      });
+      setAllExercises(exercises);
+    } catch (e) {
+      setSavingCustom(false);
+      showAlert('Error', e?.message || 'No se pudo crear el ejercicio. Intenta de nuevo.');
       return;
     }
-
-    // Refrescar lista de ejercicios
-    await loadCustomExercises(supabase);
-    setAllExercises(getAllExercises());
+    setSavingCustom(false);
 
     // Limpiar y cerrar modal
     setNewExName('');

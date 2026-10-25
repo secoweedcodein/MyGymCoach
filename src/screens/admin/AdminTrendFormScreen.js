@@ -1,5 +1,5 @@
 // src/screens/admin/AdminTrendFormScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, ActivityIndicator, Image,
@@ -79,36 +79,35 @@ export default function AdminTrendFormScreen() {
   const [articleData, setArticleData] = useState({ category: 'Nutrición', author: '', intro: '', content: '' });
   const [recipeData, setRecipeData] = useState({ calories: '', protein: '', carbs: '', fat: '', time: '', ingredients: '', steps: '' });
 
-  useEffect(() => {
-    if (isEditing) loadTrend();
+  const loadTrend = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('trends').select('*').eq('id', id).single();
+
+    if (error || !data) {
+      Alert.alert('Error', 'No se encontró');
+      router.back();
+      return;
+    }
+
+    setForm({
+      title: data.title,
+      level: data.level,
+      rating: String(data.rating),
+      users: data.users,
+      badge: data.badge || 'Ninguno',
+      route: data.route,
+      position: String(data.position),
+      is_active: data.is_active,
+      image_id: data.image_id || 'abs',
+      show_in_see_all: data.show_in_see_all !== false,
+    });
+
+    setLoading(false);
   }, [id]);
 
-async function loadTrend() {
-  setLoading(true);
-  
-  const { data, error } = await supabase.from('trends').select('*').eq('id', id).single();
-  
-  if (error || !data) { 
-    Alert.alert('Error', 'No se encontró'); 
-    router.back(); 
-    return; 
-  }
-  
-  setForm({
-    title: data.title, 
-    level: data.level, 
-    rating: String(data.rating), 
-    users: data.users,
-    badge: data.badge || 'Ninguno', 
-    route: data.route, 
-    position: String(data.position),
-    is_active: data.is_active, 
-    image_id: data.image_id || 'abs',
-    show_in_see_all: data.show_in_see_all !== false // <- Movido adentro de setForm
-  });
-  
-  setLoading(false);
-}
+  useEffect(() => {
+    if (isEditing) loadTrend();
+  }, [isEditing, loadTrend]);
 
   function updateField(key, value) { setForm(prev => ({ ...prev, [key]: value })); }
 

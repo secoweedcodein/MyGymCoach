@@ -1,2 +1,2 @@
-﻿export * from './nutritionService';
+export * from './nutritionService';
 

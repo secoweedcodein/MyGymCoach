@@ -1,8 +1,8 @@
 // src/screens/explore/RoutineDetailScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, Dimensions, Alert,
+  Image, Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,16 +12,12 @@ import BottomTabBar from '../../../components/BottomTabBar';
 const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
 const SURFACE = '#161616';
-const SURFACE2 = '#1E1E1E';
 const BORDER = '#FFFFFF0D';
 const T1 = '#FFFFFF';
 const T2 = '#A0A0A0';
 const T3 = '#555555';
 const PURPLE = '#8B7CFF';
 const ORANGE = '#FF6B3E';
-const CYAN = '#3EE5FF';
-
-const { width } = Dimensions.get('window');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BASE DE DATOS DE RUTINAS (100% basadas en ciencia)
@@ -359,16 +355,12 @@ export default function RoutineDetailScreen() {
   const [routineId, setRoutineId] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkIfSaved();
-  }, [id]);
-
   // ✅ Obtener ejercicios del día activo (o los únicos si no hay selector)
   const currentExercises = hasDaySelector 
     ? routineData.days[activeDay].exercises 
     : routineData.exercises;
 
-  async function checkIfSaved() {
+  const checkIfSaved = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
@@ -385,7 +377,11 @@ export default function RoutineDetailScreen() {
       setRoutineId(data.id);
     }
     setLoading(false);
-  }
+  }, [routineData.name]);
+
+  useEffect(() => {
+    checkIfSaved();
+  }, [checkIfSaved]);
 
   async function handleSave() {
     const { data: { user } } = await supabase.auth.getUser();

@@ -30,7 +30,6 @@ export default function StepsScreen() {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [steps, setSteps] = useState(0);
   const [goal, setGoal] = useState(10000);
-  const [userId, setUserId] = useState(null);
   const [history, setHistory] = useState([]);
 
   // Usamos useRef para mantener la referencia de la desuscripción entre renderizados
@@ -66,7 +65,6 @@ export default function StepsScreen() {
         setLoading(false);
         return;
       }
-      setUserId(user.id);
 
       // 2. Verificar permisos
       const { granted } = await checkPedometerPermission();
@@ -113,7 +111,7 @@ export default function StepsScreen() {
       duration: 800,
       useNativeDriver: false,
     }).start();
-  }, [steps, goal]);
+  }, [steps, goal, progressAnim]);
 
   const metrics = calculateMetrics(steps) || { distanceKm: '0.0', calories: 0, activeMinutes: 0 };
   const progress = goal > 0 ? Math.min(steps / goal, 1) : 0;

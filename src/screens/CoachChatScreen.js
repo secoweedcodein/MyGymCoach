@@ -12,7 +12,6 @@ import { runFullAnalysis, buildUserContextForChat } from '../../services/coachAn
 const ACCENT  = '#C0FF3E';
 const BG      = '#0D0D0D';
 const SURFACE = '#161616';
-const SRF2    = '#1E1E1E';
 const BORDER  = '#FFFFFF0D';
 const BORDER2 = '#FFFFFF18';
 const T1      = '#FFFFFF';

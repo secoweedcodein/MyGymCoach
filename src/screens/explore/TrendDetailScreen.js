@@ -1,5 +1,5 @@
 // src/screens/explore/TrendDetailScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, ActivityIndicator, Alert,
@@ -45,11 +45,7 @@ export default function TrendDetailScreen() {
   const [routineId, setRoutineId] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadTrend();
-  }, [id]);
-
-  async function loadTrend() {
+  const loadTrend = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -65,7 +61,11 @@ export default function TrendDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    loadTrend();
+  }, [loadTrend]);
 
   useEffect(() => {
     if (!trend) return;

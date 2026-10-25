@@ -13,7 +13,6 @@ function loadProcessor() {
     isRetryableError: () => true,
   }));
   jest.doMock('../workoutSyncService', () => ({ syncMutation: mockSyncMutation }));
-  // eslint-disable-next-line global-require
   return require('../workoutQueueProcessor');
 }
 

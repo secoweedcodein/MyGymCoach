@@ -58,7 +58,7 @@ export default function AppAlert({
 
     }
 
-  }, [visible]);
+  }, [visible, opacity, scale]);
 
   function pressButton(button) {
 

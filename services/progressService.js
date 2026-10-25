@@ -60,7 +60,7 @@ export async function checkAndSavePR(userId, exerciseName, sets, sessionId) {
 
 // Modo FASE 4: cada PR es una fila por ejercicio con las 4 métricas como máximos.
 async function saveMultiMetricPR(userId, exerciseName, sets, sessionId) {
-  const { summary, lastImproved } = summarizeBestSets(sets);
+  const { summary } = summarizeBestSets(sets);
   const isImprovement =
     summary.max_weight > 0 || summary.max_reps > 0 || summary.max_volume > 0 || summary.e1rm > 0;
 

@@ -1,5 +1,5 @@
 // src/screens/admin/AdminUserRecipesScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, ActivityIndicator,
@@ -32,11 +32,7 @@ export default function AdminUserRecipesScreen() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('pending');
 
-  useEffect(() => {
-    loadRecipes();
-  }, [activeFilter]);
-
-  async function loadRecipes() {
+  const loadRecipes = useCallback(async () => {
     setLoading(true);
     let query = supabase
       .from('user_recipes')
@@ -55,7 +51,11 @@ export default function AdminUserRecipesScreen() {
       setRecipes(data || []);
     }
     setLoading(false);
-  }
+  }, [activeFilter]);
+
+  useEffect(() => {
+    loadRecipes();
+  }, [loadRecipes]);
 
   function handleApprove(recipe) {
     Alert.alert(

@@ -5,7 +5,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, Modal,
+  StyleSheet, Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
@@ -17,7 +17,6 @@ import {
   loadCustomExercises,
   getAllExercises,
 } from './data/exercises';
-import { colors, radius, spacing } from '../../lib/theme';
 import ExerciseIcon from '../../components/ExerciseIcon';
 import { useAlert } from "../context/AlertContext";
 const ACCENT   = '#C0FF3E';

@@ -1,5 +1,5 @@
 // src/screens/admin/AdminArticleFormScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, ActivityIndicator,
@@ -41,11 +41,7 @@ export default function AdminArticleFormScreen() {
     key_takeaways: [],
   });
 
-  useEffect(() => {
-    if (isEditing) loadArticle();
-  }, [id]);
-
-  async function loadArticle() {
+  const loadArticle = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('articles')
@@ -71,7 +67,11 @@ export default function AdminArticleFormScreen() {
       key_takeaways: data.key_takeaways || [],
     });
     setLoading(false);
-  }
+  }, [id]);
+
+  useEffect(() => {
+    if (isEditing) loadArticle();
+  }, [isEditing, loadArticle]);
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }));

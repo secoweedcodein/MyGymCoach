@@ -1,5 +1,5 @@
 // src/screens/admin/AdminRecipeFormScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, ActivityIndicator, Modal,
@@ -42,11 +42,7 @@ export default function AdminRecipeFormScreen() {
     steps: [],
   });
 
-  useEffect(() => {
-    if (isEditing) loadRecipe();
-  }, [id]);
-
-  async function loadRecipe() {
+  const loadRecipe = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('recipes_ia')
@@ -74,7 +70,11 @@ export default function AdminRecipeFormScreen() {
       steps: data.instructions || data.steps || [],
     });
     setLoading(false);
-  }
+  }, [id]);
+
+  useEffect(() => {
+    if (isEditing) loadRecipe();
+  }, [isEditing, loadRecipe]);
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }));

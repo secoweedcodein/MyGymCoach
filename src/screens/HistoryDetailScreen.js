@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -17,11 +17,7 @@ export default function HistoryDetailScreen() {
   const [sets, setSets] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadWorkout();
-  }, []);
-
-  async function loadWorkout() {
+  const loadWorkout = useCallback(async () => {
     const { data, error } = await supabase
       .from('workout_sets')
       .select('*')
@@ -36,7 +32,11 @@ export default function HistoryDetailScreen() {
 
     setSets(data || []);
     setLoading(false);
-  }
+  }, [sessionId]);
+
+  useEffect(() => {
+    loadWorkout();
+  }, [loadWorkout]);
 
   if (loading) {
     return (

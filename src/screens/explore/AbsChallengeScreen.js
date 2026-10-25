@@ -3,7 +3,7 @@ import { todayKey } from '../../../lib/dateUtils';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, Dimensions, Alert,
+  Image, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +20,6 @@ const T2 = '#A0A0A0';
 const T3 = '#555555';
 const PURPLE = '#8B7CFF';
 
-const { width } = Dimensions.get('window');
 
 const CHALLENGE_DATA = {
   name: 'Reto: 30 días Abs',

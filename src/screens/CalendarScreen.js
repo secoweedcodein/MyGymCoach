@@ -22,13 +22,7 @@ export default function CalendarScreen() {
   const [timeFilter, setTimeFilter] = useState('month');
   const [stats, setStats] = useState({ workouts: 0, sets: 0, volume: 0 });
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [currentDate, timeFilter])
-  );
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -93,7 +87,13 @@ export default function CalendarScreen() {
     }
 
     setLoading(false);
-  }
+  }, [currentDate, timeFilter]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   const changeMonth = (offset) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));

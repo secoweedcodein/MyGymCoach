@@ -1,6 +1,6 @@
 // src/screens/explore/ChallengeDetailScreen.js
 import { todayKey } from '../../../lib/dateUtils';
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, ActivityIndicator, Alert,
@@ -49,15 +49,7 @@ export default function ChallengeDetailScreen() {
   const [routineId, setRoutineId] = useState(null);
   const [activeDay, setActiveDay] = useState(0);
 
-  useEffect(() => {
-    loadChallenge();
-  }, [id]);
-
-  useEffect(() => {
-    if (challenge) checkIfSaved();
-  }, [challenge]);
-
-  async function loadChallenge() {
+  const loadChallenge = useCallback(async () => {
     setLoading(true);
     try {
       let challengeId = id;
@@ -90,15 +82,23 @@ export default function ChallengeDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
 
-  async function checkIfSaved() {
+  const checkIfSaved = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data } = await supabase.from('routines').select('id')
       .eq('user_id', user.id).eq('name', `Reto: ${challenge.name}`).maybeSingle();
     if (data) { setSaved(true); setRoutineId(data.id); }
-  }
+  }, [challenge]);
+
+  useEffect(() => {
+    loadChallenge();
+  }, [loadChallenge]);
+
+  useEffect(() => {
+    if (challenge) checkIfSaved();
+  }, [challenge, checkIfSaved]);
 
   async function handleSave() {
     const { data: { user } } = await supabase.auth.getUser();

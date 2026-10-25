@@ -1,5 +1,5 @@
 // features/workout/screens/WorkoutScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Animated,
 } from 'react-native';
@@ -25,15 +25,11 @@ const BG = '#0D0D0D';
 const SURFACE = '#161616';
 const SURFACE2 = '#1E1E1E';
 const BORDER = '#FFFFFF0D';
-const BORDER2 = '#FFFFFF18';
 const T1 = '#FFFFFF';
 const T2 = '#A0A0A0';
 const T3 = '#555555';
-const RED = '#FF453A';
 const GREEN = '#3DD68C';
-const ORANGE = '#FF9500';
 const BLUE = '#3E8EFF';
-const PURPLE = '#A78BFA';
 
 
 
@@ -42,7 +38,7 @@ function SeriesProgress({ done, total }) {
   const widthAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(widthAnim, { toValue: pct, duration: 400, useNativeDriver: false }).start();
-  }, [pct]);
+  }, [pct, widthAnim]);
   const barColor = pct === 1 ? GREEN : pct > 0.5 ? ACCENT : BLUE;
   return (
     <View style={sp.wrap}>
@@ -72,13 +68,15 @@ export default function WorkoutScreen({ route }) {
   const userId = user?.id || null;
   const params = useLocalSearchParams();
   const rawRoutine = params?.routine || route?.params?.routine;
-  const routine = typeof rawRoutine === 'string' ? JSON.parse(rawRoutine) : (rawRoutine || {});
+  const routine = useMemo(
+    () => typeof rawRoutine === 'string' ? JSON.parse(rawRoutine) : (rawRoutine || {}),
+    [rawRoutine],
+  );
   const pr = usePersonalRecords(userId) || {};
-  const checkRecord = pr.checkRecord;
   const newRecord = pr.newRecord;
   const clearRecord = pr.clearRecord;
 
-  const { hasRecovery, recovery, check, clear } = useWorkoutRecovery();
+  const { recovery, check, clear } = useWorkoutRecovery();
 
   const {
     exercises,
@@ -101,7 +99,7 @@ export default function WorkoutScreen({ route }) {
 
   const { elapsed } = useWorkoutTimer({ isActive, isPaused, startedAt });
 
-  const { active: restActive, seconds: restSec, start: startRest, skip: skipRest, stop: stopRest } = useRestTimer();
+  const { active: restActive, seconds: restSec, start: startRest, skip: skipRest } = useRestTimer();
 
   const savingRef = useRef(false);
   const [showModal, setShowModal] = useState(false);
@@ -110,16 +108,12 @@ export default function WorkoutScreen({ route }) {
   const [showSetModal, setShowSetModal] = useState(false);
   const [editingSet, setEditingSet] = useState(null);
   const [editingExId, setEditingExId] = useState(null);
-  const [showPlateModal, setShowPlateModal] = useState(false);
-  const [plateWeight, setPlateWeight] = useState(0);
-  const [showRpeModal, setShowRpeModal] = useState(false);
-  const [rpeSetCtx, setRpeSetCtx] = useState({ exId: null, set: null });
   const [allExercises, setAllExercises] = useState([]);
 
   useEffect(() => {
     try {
       setAllExercises(getAllExercises());
-    } catch (e) {
+    } catch {
       setAllExercises([]);
     }
   }, []);
@@ -305,7 +299,7 @@ export default function WorkoutScreen({ route }) {
         </View>
       </Modal>
 
-      {newRecord && <RecordToast record={newRecord} onDismiss={clearRecord} />}
+      {newRecord && <RecordToast record={newRecord} onHide={clearRecord} />}
     </View>
   );
 }

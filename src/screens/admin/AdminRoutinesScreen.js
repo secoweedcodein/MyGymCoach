@@ -48,7 +48,7 @@ export default function AdminRoutinesScreen() {
       setLoading(true);
       const data = await getAllPublicRoutines();
       setRoutines(data);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'No se pudieron cargar las rutinas');
     } finally {
       setLoading(false);
@@ -99,7 +99,7 @@ export default function AdminRoutinesScreen() {
         const imageUrl = await uploadImage(result.assets[0].uri, 'routines');
         setFormData({ ...formData, image_id: imageUrl });
         Alert.alert('✅ Éxito', 'Imagen subida correctamente');
-      } catch (error) {
+      } catch {
         Alert.alert('Error', 'No se pudo subir la imagen');
       }
     }
@@ -143,7 +143,7 @@ export default function AdminRoutinesScreen() {
               await deletePublicRoutine(routine.id);
               Alert.alert('✅ Eliminado', 'La rutina fue eliminada');
               loadRoutines();
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'No se pudo eliminar');
             }
           },

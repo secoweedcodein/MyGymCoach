@@ -6,11 +6,16 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
 import { todayKey } from '../../lib/dateUtils';
 import { sumMacros, rescaleEntry } from '../../lib/nutritionStats';
 import BarcodeScannerScreen from './BarcodeScannerScreen.js';
 import { copyYesterdayMeals } from '../../services/nutritionService';
+import {
+  deleteNutritionLog,
+  fetchNutritionDashboard,
+  getCurrentUser,
+  updateNutritionLog,
+} from '../../features/nutrition/services/nutritionService';
 
 const ACCENT  = '#C0FF3E';
 const BG      = '#0D0D0D';
@@ -45,7 +50,7 @@ function CalorieRing({ consumed, goal }) {
   const animPct = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(animPct, { toValue: pct, duration: 800, useNativeDriver: false }).start();
-  }, [pct]);
+  }, [pct, animPct]);
 
   const SIZE   = 120;
   const STROKE = 10;
@@ -112,7 +117,7 @@ function MacroBar({ label, value, goal, color, unit }) {
   const widthAn = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(widthAn, { toValue: pct, duration: 700, useNativeDriver: false }).start();
-  }, [pct]);
+  }, [pct, widthAn]);
 
   return (
     <View style={mb.wrap}>
@@ -164,23 +169,26 @@ export default function NutritionScreen() {
 
   async function loadAll() {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-    setUserId(user.id);
-
-    const today = todayKey();
-
-    const [logsRes, goalsRes, savedRecipesRes] = await Promise.all([
-      supabase.from('nutrition_logs').select('id, meal_type, food_name, food_id, barcode, calories, protein_g, carbs_g, fat_g, quantity_g, logged_date, created_at').eq('user_id', user.id).eq('logged_date', today).order('created_at'),
-      supabase.from('nutrition_goals').select('calories, protein_g, carbs_g, fat_g').eq('user_id', user.id).maybeSingle(),
-      supabase.from('saved_recipes').select('id, recipe_id, recipe_name, recipe_category, calories, protein, time, saved_at').eq('user_id', user.id).order('saved_at', { ascending: false }).limit(5),
-    ]);
-
-    if (logsRes.data) setTodayLog(logsRes.data);
-    if (goalsRes.data) setGoals(goalsRes.data);
-    if (savedRecipesRes.data) setSavedRecipes(savedRecipesRes.data);
-
-    setLoading(false);
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
+        setUserId(null);
+        setTodayLog([]);
+        setGoals(null);
+        setSavedRecipes([]);
+        return;
+      }
+      setUserId(user.id);
+      const dashboard = await fetchNutritionDashboard(user.id, todayKey());
+      setTodayLog(dashboard.logs);
+      setGoals(dashboard.goals);
+      setSavedRecipes(dashboard.savedRecipes);
+    } catch (error) {
+      console.error('Error cargando nutrición:', error);
+      Alert.alert('Error', 'No se pudieron cargar tus datos de nutrición.');
+    } finally {
+      setLoading(false);
+    }
   }
   const handleCopyYesterday = async () => {
     if (!userId) return;
@@ -193,8 +201,13 @@ export default function NutritionScreen() {
     }
   };
   async function removeFood(id) {
-    await supabase.from('nutrition_logs').delete().eq('id', id);
-    loadAll();
+    try {
+      await deleteNutritionLog(id);
+      await loadAll();
+    } catch (error) {
+      console.error('Error eliminando alimento:', error);
+      Alert.alert('Error', 'No se pudo eliminar el registro.');
+    }
   }
 
   function beginEdit(item) {
@@ -208,20 +221,20 @@ export default function NutritionScreen() {
     const g = parseFloat(editGrams);
     if (!g || g <= 0) { Alert.alert('Cantidad inválida', 'Ingresa los gramos.'); return; }
     const updated = rescaleEntry(editingItem, g);
-    const { error } = await supabase
-      .from('nutrition_logs')
-      .update({
+    try {
+      await updateNutritionLog(editingItem.id, {
         meal_type:  editMeal,
         quantity_g: updated.quantity_g,
         calories:   updated.calories,
         protein_g:  updated.protein_g,
         carbs_g:    updated.carbs_g,
         fat_g:      updated.fat_g,
-      })
-      .eq('id', editingItem.id);
-    if (error) { Alert.alert('Error', error.message); return; }
-    setEditingItem(null);
-    loadAll();
+      });
+      setEditingItem(null);
+      await loadAll();
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo actualizar el registro.');
+    }
   }
 
   const openScanner = (mealType) => {

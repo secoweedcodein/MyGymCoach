@@ -1,15 +1,22 @@
 // src/screens/FoodSearchScreen.js
 import { todayKey } from '../../lib/dateUtils';
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, Alert, Modal,
+  StyleSheet, ActivityIndicator, Modal,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../lib/supabase';
 import { searchFoods } from '../../services/foodService';
 import CreateFoodModal from '../../components/CreateFoodModal';
-import { useAlert } from "../context/AlertContext";
+import { useAlert } from '../context/AlertContext';
+import {
+  addFoodToMealPlan,
+  addFoodToNutrition,
+  addRecipeToNutrition,
+  fetchFoodSearchData,
+  getCurrentUser,
+  toggleFoodFavorite as toggleFoodFavoriteInService,
+} from '../../features/nutrition/services/nutritionService';
 
 const ACCENT  = '#C0FF3E';
 const BG      = '#0D0D0D';
@@ -64,38 +71,21 @@ export default function FoodSearchScreen() {
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserId(user.id);
-
-      // Cargar recientes
-      const { data: recent } = await supabase
-        .from('recent_foods')
-        .select('id, food_name, food_id, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (recent) setRecentFoods(recent);
-
-      // Cargar favoritos
-      const { data: favs } = await supabase
-        .from('food_favorites')
-        .select('id, food_name, food_id, calories, protein_g, carbs_g, fat_g, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (favs) setFavorites(favs);
-
-      // ✅ NUEVO: Cargar recetas guardadas
-      const { data: recipes } = await supabase
-        .from('saved_recipes')
-        .select('id, recipe_id, recipe_name, recipe_category, calories, protein, carbs, fat, time, saved_at')
-        .eq('user_id', user.id)
-        .order('saved_at', { ascending: false });
-      if (recipes) setSavedRecipes(recipes);
+      try {
+        const user = await getCurrentUser();
+        if (!user) return;
+        setUserId(user.id);
+        const data = await fetchFoodSearchData(user.id);
+        setRecentFoods(data.recent);
+        setFavorites(data.favorites);
+        setSavedRecipes(data.savedRecipes);
+      } catch (error) {
+        console.error('Error cargando la búsqueda de alimentos:', error);
+        showAlert('Error', 'No se pudieron cargar tus alimentos guardados.');
+      }
     }
     init();
-  }, []);
+  }, [showAlert]);
 
   function handleQueryChange(text) {
     setQuery(text);
@@ -133,46 +123,32 @@ export default function FoodSearchScreen() {
     setSaving(true);
     const scaled = scaleNutrients(selectedFood, g);
 
-    await supabase.from('recent_foods').insert({
-      user_id:   userId,
-      food_name: selectedFood.name,
-      food_id:   selectedFood.id,
-    });
-
-    const { error } = await supabase.from('nutrition_logs').insert({
-      user_id:     userId,
-      meal_type:   mealType,
-      food_name:   selectedFood.name,
-      food_id:     selectedFood.id,
-      calories:    scaled.calories,
-      protein_g:   scaled.protein,
-      carbs_g:     scaled.carbs,
-      fat_g:       scaled.fat,
-      quantity_g:  g,
-      logged_date: todayKey(),
-    });
-
-    setSaving(false);
-    if (error) { showAlert('Error', error.message); return; }
-
-    setShowModal(false);
-    if (params.planMode === 'true') {
-      await supabase.from('meal_plans').insert({
-        user_id:     userId,
-        week_start:  params.weekStart,
-        day_of_week: parseInt(params.dayOfWeek),
-        meal_type:   mealType,
-        food_name:   selectedFood.name,
-        calories:    scaled.calories,
-        protein_g:   scaled.protein,
-        carbs_g:     scaled.carbs,
-        fat_g:       scaled.fat,
+    try {
+      await addFoodToNutrition({
+        userId,
+        mealType,
+        food: selectedFood,
+        grams: g,
+        nutrients: scaled,
+        loggedDate: todayKey(),
       });
+      if (params.planMode === 'true') {
+        await addFoodToMealPlan({
+          userId,
+          weekStart: params.weekStart,
+          dayOfWeek: params.dayOfWeek,
+          mealType,
+          food: selectedFood,
+          nutrients: scaled,
+        });
+      }
+      setShowModal(false);
       router.back();
-      return;
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudo añadir el alimento.');
+    } finally {
+      setSaving(false);
     }
-
-    router.back();
   }
 
   // ✅ NUEVO: Función para añadir receta guardada directamente
@@ -180,24 +156,13 @@ export default function FoodSearchScreen() {
     if (!userId) return;
     setSaving(true);
     
-    const { error } = await supabase.from('nutrition_logs').insert({
-      user_id:     userId,
-      meal_type:   mealType,
-      food_name:   `🍳 ${recipe.recipe_name}`, // Emoji para identificar que es una receta
-      food_id:     `recipe_${recipe.recipe_id}`,
-      calories:    recipe.calories || 0,
-      protein_g:   recipe.protein || 0,
-      carbs_g:     recipe.carbs || 0,
-      fat_g:       recipe.fat || 0,
-      quantity_g:  1, // 1 porción completa de la receta
-      logged_date: todayKey(),
-    });
-
-    setSaving(false);
-    if (error) {
-      showAlert('Error', error.message);
-    } else {
+    try {
+      await addRecipeToNutrition({ userId, mealType, recipe, loggedDate: todayKey() });
       router.back();
+    } catch (error) {
+      showAlert('Error', error.message || 'No se pudo añadir la receta.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -219,31 +184,22 @@ export default function FoodSearchScreen() {
         }, ...prev]);
 
     if (existing) {
-      const { error } = await supabase.from('food_favorites').delete().eq('id', existing.id);
-      if (error) {
+      try {
+        await toggleFoodFavoriteInService({ userId, food, existingFavorite: existing });
+      } catch (error) {
         setFavorites(prev => (prev.some(f => f.food_id === food.id) ? prev : [existing, ...prev]));
         showAlert('Error', error.message || 'No se pudo actualizar el favorito');
       }
       return;
     }
 
-    const { data, error } = await supabase.from('food_favorites').insert({
-      user_id:   userId,
-      food_name: food.name,
-      food_id:   food.id,
-      calories:  food.per100g.calories,
-      protein_g: food.per100g.protein,
-      carbs_g:   food.per100g.carbs,
-      fat_g:     food.per100g.fat,
-    }).select('id, food_name, food_id, calories, protein_g, carbs_g, fat_g').single();
-
-    if (error || !data) {
+    try {
+      const data = await toggleFoodFavoriteInService({ userId, food, existingFavorite: null });
+      setFavorites(prev => prev.map(f => (f.food_id === food.id ? data : f)));
+    } catch (error) {
       setFavorites(prev => prev.filter(f => f.food_id !== food.id));
-      showAlert('Error', error?.message || 'No se pudo guardar el favorito');
-      return;
+      showAlert('Error', error.message || 'No se pudo guardar el favorito');
     }
-
-    setFavorites(prev => prev.map(f => (f.food_id === food.id ? data : f)));
   }
 
   function isFav(food) { return favorites.some(f => f.food_id === food.id); }

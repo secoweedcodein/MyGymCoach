@@ -5,7 +5,6 @@ import { formatRating } from '../lib/ratings';
 
 const ACCENT = '#C0FF3E';
 const T2 = '#A0A0A0';
-const T3 = '#555555';
 
 export default function RatingBar({
   value,

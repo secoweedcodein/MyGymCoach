@@ -2,7 +2,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
-const ACCENT = '#C0FF3E';
 const BG = '#0D0D0D';
 const SURFACE = '#161616';
 const BORDER = '#FFFFFF0D';
