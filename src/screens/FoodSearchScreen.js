@@ -140,6 +140,7 @@ export default function FoodSearchScreen() {
           mealType,
           food: selectedFood,
           nutrients: scaled,
+          grams: g,
         });
       }
       setShowModal(false);

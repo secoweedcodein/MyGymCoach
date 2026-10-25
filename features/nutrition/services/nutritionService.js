@@ -136,13 +136,14 @@ export async function addRecipeToNutrition({ userId, mealType, recipe, loggedDat
   throwQueryError(result);
 }
 
-export async function addFoodToMealPlan({ userId, weekStart, dayOfWeek, mealType, food, nutrients }) {
+export async function addFoodToMealPlan({ userId, weekStart, dayOfWeek, mealType, food, nutrients, grams }) {
   requireValue(userId, 'el usuario');
   requireValue(weekStart, 'el inicio de semana');
   const day = Number(dayOfWeek);
   if (!Number.isInteger(day) || day < 0 || day > 6) {
     throw new TypeError('El día de la semana debe estar entre 0 y 6');
   }
+  const quantity = grams != null ? Number(grams) : 100;
   const result = await supabase.from('meal_plans').insert({
     user_id: userId,
     week_start: weekStart,
@@ -153,6 +154,7 @@ export async function addFoodToMealPlan({ userId, weekStart, dayOfWeek, mealType
     protein_g: nutrients.protein,
     carbs_g: nutrients.carbs,
     fat_g: nutrients.fat,
+    quantity_g: quantity,
   });
   throwQueryError(result);
 }
@@ -181,17 +183,21 @@ export async function copyMealPlanDayToNutrition({ userId, items, loggedDate }) 
   requireValue(loggedDate, 'la fecha');
   if (!Array.isArray(items)) throw new TypeError('Los alimentos deben ser una lista');
   if (items.length === 0) return;
-  const result = await supabase.from('nutrition_logs').insert(items.map((item) => ({
-    user_id: userId,
-    meal_type: item.meal_type,
-    food_name: item.food_name,
-    calories: item.calories,
-    protein_g: item.protein_g,
-    carbs_g: item.carbs_g,
-    fat_g: item.fat_g,
-    quantity_g: 100,
-    logged_date: loggedDate,
-  })));
+  const result = await supabase.from('nutrition_logs').insert(items.map((item) => {
+    const quantity = item.quantity_g ?? item.quantity ?? 100;
+    return {
+      user_id: userId,
+      meal_type: item.meal_type,
+      food_name: item.food_name,
+      food_id: item.food_id ?? null,
+      calories: item.calories,
+      protein_g: item.protein_g,
+      carbs_g: item.carbs_g,
+      fat_g: item.fat_g,
+      quantity_g: quantity,
+      logged_date: loggedDate,
+    };
+  }));
   throwQueryError(result);
 }
 
